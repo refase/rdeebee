@@ -1,13 +1,12 @@
 use std::{
-    cell::RefCell,
     fmt::{Debug, Display},
-    rc::Rc,
     time::SystemTime,
 };
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum Action {
     READ,
     WRITE,
@@ -15,9 +14,9 @@ pub(crate) enum Action {
     DELETE,
 }
 
-type Payload = Option<Rc<RefCell<Vec<u8>>>>;
+type Payload = Option<Vec<u8>>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Event {
     timestamp: SystemTime,
     transaction_id: Uuid,
@@ -40,9 +39,12 @@ impl Event {
         self.transaction_id
     }
 
-    pub(crate) fn set_id(&mut self, id: u64) {
-        let id_u = Uuid::from_u128(id as u128);
-        self.transaction_id = id_u;
+    pub(crate) fn set_id(&mut self, id: Uuid) {
+        self.transaction_id = id;
+    }
+
+    pub(crate) fn set_payload(&mut self, payload: Payload) {
+        self.payload = payload;
     }
 
     pub(crate) fn timestamp(&self) -> SystemTime {
@@ -52,13 +54,17 @@ impl Event {
     pub(crate) fn action(&self) -> &Action {
         &self.action
     }
+
+    pub(crate) fn payload(&self) -> Payload {
+        self.payload.clone()
+    }
 }
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
-            "ID: {}, Action: {:#?}",
-            self.transaction_id, self.action
+            "Time: {:#?}, ID: {}, Action: {:#?}",
+            self.timestamp, self.transaction_id, self.action
         ))
     }
 }
