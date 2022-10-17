@@ -7,7 +7,7 @@ use std::{
 
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Action {
     READ,
     WRITE,
@@ -17,7 +17,7 @@ pub(crate) enum Action {
 
 type Payload = Option<Rc<RefCell<Vec<u8>>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Event {
     timestamp: SystemTime,
     transaction_id: Uuid,
