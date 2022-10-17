@@ -32,6 +32,10 @@ impl MemTable {
         }
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.identifiers.len()
+    }
+
     /// Insert an event into the database.
     pub(crate) fn insert(&mut self, event: Event) {
         let id = event.id();
@@ -52,28 +56,40 @@ impl MemTable {
 
 #[cfg(test)]
 mod test {
-    use skiplist::OrderedSkipList;
+    use crate::storage::{
+        event::{Action, Event},
+        mem::memtable::MemTable,
+    };
 
     #[test]
-    fn skiplist_len_test() {
-        let mut skiplist = OrderedSkipList::with_capacity(100);
-        skiplist.extend(0..100);
-        assert_eq!(skiplist.len(), 100);
+    fn memtable_len_test() {
+        let mut memtable = MemTable::new();
+        let mut events = Vec::new();
+        for _ in 0..100 {
+            events.push(Event::new(Action::READ));
+        }
+
+        for event in events {
+            memtable.insert(event);
+        }
+        assert_eq!(memtable.len(), 100);
     }
 
     #[test]
-    fn skiplist_push_test() {
-        let mut skiplist = OrderedSkipList::with_capacity(100);
-        skiplist.insert(10);
-        skiplist.insert(10);
-        skiplist.insert(79);
-        skiplist.insert(5);
-        skiplist.insert(20);
-        skiplist.insert(1);
-        assert_eq!(skiplist.len(), 6);
-        println!("Skiplist: {:#?}", skiplist);
-        skiplist.dedup();
-        assert_eq!(skiplist.len(), 5);
-        println!("Skiplist: {:#?}", skiplist);
+    fn memtable_find_test() {
+        let mut memtable = MemTable::new();
+        let mut events = Vec::new();
+        for i in 0..5 {
+            events.push(Event::new(Action::READ));
+        }
+
+        let event = events.get(0).unwrap().to_owned();
+
+        for event in events {
+            memtable.insert(event);
+        }
+
+        let res = memtable.get_event(event.id());
+        assert_eq!(res, Some(event));
     }
 }
