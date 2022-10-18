@@ -21,7 +21,7 @@ impl WALIterator {
     pub(crate) fn new(path: PathBuf) -> io::Result<WALIterator> {
         let file = OpenOptions::new().read(true).open(path)?;
         let reader = BufReader::new(file);
-        Ok(WALIterator { reader })
+        Ok(Self { reader })
     }
 }
 
@@ -95,7 +95,7 @@ impl WAL {
     pub(crate) fn add_event(&mut self, event: Event) -> io::Result<()> {
         let event_ser = bincode::serialize(&event).unwrap(); // TODO: convert to and return `thiserror`
         self.file.write_all(&event_ser)?;
-        self.file.write("|".as_bytes())?;
+        self.file.write("|".as_bytes())?; // delimiter
         Ok(())
     }
 
@@ -106,6 +106,7 @@ impl WAL {
         self.add_event(event)
     }
 
+    // TODO: when to flush?
     /// Flush the WAL to disk
     pub(crate) fn flush(&mut self) -> io::Result<()> {
         self.file.flush()
