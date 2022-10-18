@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::{File, OpenOptions},
-    io::{self, BufRead, BufReader, BufWriter, ErrorKind, Read, Write},
+    io::{self, BufRead, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -146,6 +146,7 @@ mod test {
 
         wal.add_event(event1).unwrap();
         wal.add_event(event2).unwrap();
+        wal.flush();
     }
 
     #[test]
@@ -185,9 +186,11 @@ mod test {
 
         wal.add_event(event1).unwrap();
         wal.add_event(event2).unwrap();
+        wal.flush();
 
         let new_wal = WAL::from_path(&wal.path).unwrap();
-        println!("New WAL");
+        println!("Old WAL: {:#?}", &wal.path);
+        println!("New WAL: {:#?}", &new_wal.path);
 
         for event in new_wal {
             println!("Event: {}", event);
