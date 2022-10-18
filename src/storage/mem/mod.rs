@@ -1,7 +1,5 @@
 mod memtable;
-mod rbt;
-mod wal;
+// mod rbt;
 
 pub use memtable::*;
-pub use rbt::*;
-pub use wal::*;
+// pub use rbt::*;
