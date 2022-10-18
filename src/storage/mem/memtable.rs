@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 use skiplist::OrderedSkipList;
 use uuid::Uuid;
@@ -21,8 +21,8 @@ struct MemTable {
 }
 
 impl MemTable {
-    // We will write to disk once we have reached 100 records.
-    const MAX_RECORDS: u64 = 100;
+    // We will write to disk once we have reached this size.
+    const MAX_SIZE_IN_BYTES: u64 = 2048;
 
     pub(crate) fn new() -> Self {
         Self {
@@ -32,16 +32,23 @@ impl MemTable {
         }
     }
 
+    // Get number of records in the system
     pub(crate) fn len(&self) -> usize {
         self.identifiers.len()
+    }
+
+    /// Get memtable size in bytes
+    pub(crate) fn size(&self) -> usize {
+        self.size
     }
 
     /// Insert an event into the database.
     pub(crate) fn insert(&mut self, event: Event) {
         let id = event.id();
         self.identifiers.insert(id);
+        let sz = event.size();
         self.entries.insert(id, event);
-        self.size += 1;
+        self.size += sz;
     }
 
     /// Get an event from the database.
@@ -60,13 +67,36 @@ mod test {
         event::{Action, Event},
         mem::memtable::MemTable,
     };
+    use rand::{distributions::Alphanumeric, Rng};
+
+    fn create_events(n: usize) -> Vec<Event> {
+        let mut events = Vec::new();
+        for _ in 0..n {
+            events.push(Event::new(Action::READ));
+        }
+        events
+    }
+
+    fn insert_events(memtable: &mut MemTable, events: Vec<Event>) {
+        for event in events {
+            memtable.insert(event);
+        }
+    }
 
     #[test]
     fn memtable_len_test() {
         let mut memtable = MemTable::new();
         let mut events = Vec::new();
         for _ in 0..100 {
-            events.push(Event::new(Action::READ));
+            let s: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(7)
+                .map(char::from)
+                .collect();
+            let payload = bincode::serialize(&s).unwrap();
+            let mut event = Event::new(Action::READ);
+            event.set_payload(Some(payload));
+            events.push(event);
         }
 
         for event in events {
@@ -91,5 +121,13 @@ mod test {
 
         let res = memtable.get_event(event.id());
         assert_eq!(res, Some(event));
+    }
+
+    #[test]
+    fn memtable_size_test() {
+        let mut memtable = MemTable::new();
+        println!("Size at the beginning: {} bytes", memtable.size());
+        insert_events(&mut memtable, create_events(10));
+        println!("Size at the end: {} bytes", memtable.size());
     }
 }
