@@ -1,5 +1,6 @@
 use std::{
     fmt::{Debug, Display},
+    mem,
     time::SystemTime,
 };
 
@@ -47,6 +48,13 @@ impl Event {
         self.payload = payload;
     }
 
+    pub(crate) fn set_payload_str(&mut self, payload: &str) {
+        match bincode::serialize(payload) {
+            Ok(v) => self.payload = Some(v),
+            Err(_) => {}
+        }
+    }
+
     pub(crate) fn timestamp(&self) -> SystemTime {
         self.timestamp
     }
@@ -58,6 +66,42 @@ impl Event {
     pub(crate) fn payload(&self) -> Payload {
         self.payload.clone()
     }
+
+    pub(crate) fn size(&self) -> usize {
+        let systime_alignment = mem::align_of::<SystemTime>();
+        let id_alignment = mem::align_of::<Uuid>();
+        let action_alignment = mem::align_of::<Action>();
+        let payload_alignment = mem::align_of::<Vec<u8>>();
+        let mut systime_sz = mem::size_of::<SystemTime>();
+        let mut id_sz = mem::size_of::<Uuid>();
+        let mut action_sz = mem::size_of::<Action>();
+        let mut payload_sz = match &self.payload {
+            Some(v) => v.len(),
+            None => payload_alignment,
+        };
+
+        systime_sz = match systime_sz % systime_alignment {
+            0 => systime_sz,
+            n => systime_sz + (systime_alignment - n),
+        };
+
+        id_sz = match id_sz % id_alignment {
+            0 => id_sz,
+            n => id_sz + (id_alignment - n),
+        };
+
+        action_sz = match action_sz % action_alignment {
+            0 => action_sz,
+            n => action_sz + (action_alignment - n),
+        };
+
+        payload_sz = match payload_sz % payload_alignment {
+            0 => payload_sz,
+            n => payload_sz + (payload_alignment - n),
+        };
+
+        systime_sz + id_sz + action_sz + payload_sz
+    }
 }
 
 impl Display for Event {
@@ -66,5 +110,19 @@ impl Display for Event {
             "Time: {:#?}, ID: {}, Action: {:#?}",
             self.timestamp, self.transaction_id, self.action
         ))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Action, Event};
+
+    #[test]
+    fn event_size() {
+        let event1 = Event::new(Action::READ);
+        println!("Event1 size: {}", event1.size());
+        let mut event2 = Event::new(Action::READ);
+        event2.set_payload_str("This is payload");
+        println!("Event2 size: {}", event2.size());
     }
 }
