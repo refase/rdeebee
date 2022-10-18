@@ -106,10 +106,19 @@ impl Event {
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!(
-            "Time: {:#?}, ID: {}, Action: {:#?}",
-            self.timestamp, self.transaction_id, self.action
-        ))
+        match self.payload() {
+            Some(payload) => {
+                let payload_str = bincode::deserialize::<&str>(&payload).unwrap();
+                f.write_str(&format!(
+                    "Time: {:#?}, ID: {}, Action: {:#?}\nPayload: {}",
+                    self.timestamp, self.transaction_id, self.action, payload_str
+                ))
+            }
+            None => f.write_str(&format!(
+                "Time: {:#?}, ID: {}, Action: {:#?}",
+                self.timestamp, self.transaction_id, self.action
+            )),
+        }
     }
 }
 
