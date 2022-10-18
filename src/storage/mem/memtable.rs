@@ -1,9 +1,37 @@
 use std::{collections::HashMap, mem};
 
-use skiplist::OrderedSkipList;
+use skiplist::{ordered_skiplist::Iter, OrderedSkipList};
 use uuid::Uuid;
 
 use crate::storage::Event;
+
+pub(crate) struct MemtableIterator<'a> {
+    memtable: &'a MemTable,
+    index: Iter<'a, Uuid>,
+}
+
+impl<'a> MemtableIterator<'a> {
+    fn new(memtable: &'a MemTable) -> Self {
+        Self {
+            memtable,
+            index: (&memtable.identifiers).into_iter(),
+        }
+    }
+}
+
+/// The MemtableIterator returns events in ascending order of transaction IDs
+// TODO: This can be optimized further by storing the events with the transaction IDs in the skiplist.
+// This skiplist does not seem to support that so that may require custom implementation.
+impl<'a> Iterator for MemtableIterator<'a> {
+    type Item = Event;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(id) = self.index.next() {
+            self.memtable.get_event(*id)
+        } else {
+            None
+        }
+    }
+}
 
 /// This is the implementation for log-structured storage
 /// We will use this [tutorial](https://adambcomer.com/blog/simple-database/memtable/) to build a MemTable
@@ -14,7 +42,7 @@ use crate::storage::Event;
 /// The Ordered SkipList is useful when merging the logs (since it is sorted).
 /// The HashMap is useful for mapping each identifier to the actual data associated with that identifier.
 /// This is an alternate to using Red Black Trees for memory.
-struct MemTable {
+pub(crate) struct MemTable {
     identifiers: OrderedSkipList<Uuid>,
     entries: HashMap<Uuid, Event>,
     size: usize,
@@ -58,6 +86,27 @@ impl MemTable {
             Some(event) => Some(event.to_owned()),
             None => None, // NOTE: unlikely branch once the bloom filter is implemented
         }
+    }
+
+    /// This removes the index and returns it
+    /// Use only when converting MemTable to SSTable
+    pub(crate) fn get_index(&mut self) -> OrderedSkipList<Uuid> {
+        mem::replace(&mut self.identifiers, OrderedSkipList::new())
+    }
+
+    /// This removes the events
+    /// Use only when converting MemTable to SSTable
+    pub(crate) fn get_events(&mut self) -> HashMap<Uuid, Event> {
+        mem::replace(&mut self.entries, HashMap::new())
+    }
+}
+
+impl<'a> IntoIterator for &'a MemTable {
+    type Item = Event;
+    type IntoIter = MemtableIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MemtableIterator::new(&self)
     }
 }
 
@@ -129,5 +178,17 @@ mod test {
         println!("Size at the beginning: {} bytes", memtable.size());
         insert_events(&mut memtable, create_events(10));
         println!("Size at the end: {} bytes", memtable.size());
+    }
+
+    #[test]
+    fn memtable_iterator_test() {
+        let mut memtable = MemTable::new();
+        for i in 0..5 {
+            memtable.insert(Event::new(Action::READ));
+        }
+
+        for event in &memtable {
+            println!("{:#?}", event);
+        }
     }
 }
