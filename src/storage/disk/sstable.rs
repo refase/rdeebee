@@ -1,6 +1,4 @@
 use std::{
-    collections::HashMap,
-    env,
     fs::{File, OpenOptions},
     io::{self, BufRead, BufReader, BufWriter, Write},
     path::PathBuf,
@@ -8,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use skiplist::OrderedSkipList;
+
 use uuid::Uuid;
 
 use crate::storage::{Action, Event, MemTable};
