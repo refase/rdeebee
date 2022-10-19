@@ -65,6 +65,11 @@ impl MemTable {
         self.identifiers.len()
     }
 
+    /// Does this event exist in the MemTable
+    pub(crate) fn contains(&self, id: Uuid) -> bool {
+        self.identifiers.contains(&id)
+    }
+
     /// Get memtable size in bytes
     pub(crate) fn size(&self) -> usize {
         self.size
