@@ -92,6 +92,16 @@ impl SSTable {
         }
     }
 
+    /// Find event by ID
+    pub(crate) fn get(&self, id: Uuid) -> Option<Event> {
+        for ref event in self.iter() {
+            if event.id() == id {
+                return Some(event.clone());
+            }
+        }
+        None
+    }
+
     /// Saves the SSTable to disk
     pub(crate) fn save_to_disk(&mut self) -> io::Result<()> {
         let memtable = self.memtable.as_ref().unwrap();
