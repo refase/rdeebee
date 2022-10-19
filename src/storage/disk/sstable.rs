@@ -56,7 +56,6 @@ impl Iterator for SSTableIterator {
 pub(crate) struct SSTable {
     epoch: u128,
     memtable: Option<MemTable>,
-    // dirname: PathBuf,
     filepath: PathBuf,
     writer: Option<BufWriter<File>>,
 }
@@ -90,6 +89,16 @@ impl SSTable {
             filepath,
             writer: Some(writer),
         }
+    }
+
+    /// Does this event exist in the SSTable
+    pub(crate) fn contains(&self, id: Uuid) -> bool {
+        for ref event in self.iter() {
+            if event.id() == id {
+                return true;
+            }
+        }
+        false
     }
 
     /// Find event by ID
