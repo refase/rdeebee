@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env, path::PathBuf};
 
-use crate::storage::{MemTable, WAL};
+use crate::storage::{MemTable, Wal};
 
 /// In case there is a crash of the system and the MemTable is lost,
 /// this will recover MemTable from the latest WAL.
@@ -10,21 +10,13 @@ impl Recovery {
     pub(crate) fn recover(&self) -> MemTable {
         let mut memtable = MemTable::new();
         let (wal_epochs, mut wal_map) = Self::recover_wal_files();
-        let mut wal_epochs_iter = wal_epochs.into_iter();
-        loop {
-            match wal_epochs_iter.next() {
-                Some(epoch) => {
-                    match wal_map.remove_entry(&epoch) {
-                        Some((_, path)) => {
-                            let wal = WAL::from_path(&path).unwrap();
-                            for event in wal {
-                                memtable.insert(event);
-                            }
-                        }
-                        None => {} // this shouldn't happen
-                    }
+        let wal_epochs_iter = wal_epochs.into_iter();
+        for epoch in wal_epochs_iter {
+            if let Some((_, path)) = wal_map.remove_entry(&epoch) {
+                let wal = Wal::from_path(&path).unwrap();
+                for event in wal {
+                    memtable.insert(event);
                 }
-                None => break,
             }
         }
         memtable

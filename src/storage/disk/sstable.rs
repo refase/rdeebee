@@ -6,7 +6,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-
 use uuid::Uuid;
 
 use crate::storage::{Action, Event, MemTable};
@@ -73,7 +72,7 @@ impl SSTable {
             .as_micros();
         // TODO: Error handling: Assumes a correct path
         let dir = PathBuf::from_str(dirname).unwrap();
-        let filepath = dir.join(format!("{}-{}.table", Self::TABLENAME, epoch.to_string()));
+        let filepath = dir.join(format!("{}-{}.table", Self::TABLENAME, epoch));
         // TODO: Error handling: Assumes a correct permissions
         let file = OpenOptions::new()
             .append(true)
@@ -117,7 +116,7 @@ impl SSTable {
                 for event in memtable {
                     let event_ser = bincode::serialize(&event).unwrap(); // TODO: convert to and return `thiserror`
                     writer.write_all(&event_ser)?;
-                    writer.write("|".as_bytes())?; // delimeter
+                    writer.write_all("|".as_bytes())?; // delimeter
                 }
                 writer.flush()?;
             }
@@ -134,7 +133,7 @@ impl SSTable {
                 for event in events {
                     let event_ser = bincode::serialize(&event).unwrap(); // TODO: convert to and return `thiserror`
                     writer.write_all(&event_ser)?;
-                    writer.write("|".as_bytes())?; // delimeter
+                    writer.write_all("|".as_bytes())?; // delimeter
                 }
                 writer.flush()?;
             }
@@ -154,8 +153,6 @@ impl SSTable {
     /// Given an existing file, return an SSTable
     pub(crate) fn from_file(filepath: PathBuf) -> io::Result<Self> {
         log::info!("Opening new segment: {}", &filepath.display());
-        let file = OpenOptions::new().read(true).open(&filepath)?;
-        let meta = file.metadata()?;
         let filename = filepath.file_name().and_then(|f| f.to_str()).unwrap(); // TODO: error handling
         let epoch = Self::get_epoch_from_filename(filename);
 
@@ -183,47 +180,48 @@ impl SSTable {
             other.filepath.file_name().and_then(|f| f.to_str()).unwrap(),
         );
 
-        let dir = self.filepath.parent().unwrap().to_owned();
-
         let mut iter1 = self.iter();
         let mut iter2 = other.iter();
 
         loop {
-            let mut event: Option<Event> = None;
+            let event: Option<Event>;
             match (iter1.next(), iter2.next()) {
-                (Some(event1), Some(event2)) => {
-                    if event1.id() < event2.id() {
-                        if event1.action() == &Action::DELETE {
+                (Some(event1), Some(event2)) => match event1.id().cmp(&event2.id()) {
+                    std::cmp::Ordering::Less => {
+                        if event1.action() == &Action::Delete {
                             deleted_events.push(event1.id());
                         }
                         event = Some(event1);
-                    } else if event1.id() == event2.id() {
-                        if epoch1 > epoch2 {
-                            if event1.action() == &Action::DELETE {
+                    }
+                    std::cmp::Ordering::Equal => match epoch1 > epoch2 {
+                        true => {
+                            if event1.action() == &Action::Delete {
                                 deleted_events.push(event1.id());
                             }
                             event = Some(event1);
-                        } else {
-                            if event2.action() == &Action::DELETE {
+                        }
+                        false => {
+                            if event2.action() == &Action::Delete {
                                 deleted_events.push(event2.id());
                             }
                             event = Some(event2);
                         }
-                    } else {
-                        if event2.action() == &Action::DELETE {
+                    },
+                    std::cmp::Ordering::Greater => {
+                        if event2.action() == &Action::Delete {
                             deleted_events.push(event2.id());
                         }
                         event = Some(event2);
                     }
-                }
+                },
                 (None, Some(event2)) => {
-                    if event2.action() == &Action::DELETE {
+                    if event2.action() == &Action::Delete {
                         deleted_events.push(event2.id());
                     }
                     event = Some(event2);
                 }
                 (Some(event1), None) => {
-                    if event1.action() == &Action::DELETE {
+                    if event1.action() == &Action::Delete {
                         deleted_events.push(event1.id());
                     }
                     event = Some(event1);
@@ -243,7 +241,7 @@ impl SSTable {
             .as_micros();
 
         let dir = self.filepath.parent().unwrap().to_owned();
-        let filepath = dir.join(format!("{}-{}.table", Self::TABLENAME, epoch.to_string()));
+        let filepath = dir.join(format!("{}-{}.table", Self::TABLENAME, epoch));
         let file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -280,7 +278,7 @@ mod test {
     fn create_events(n: usize) -> Vec<Event> {
         let mut events = Vec::new();
         for _ in 0..n {
-            events.push(Event::new(Action::READ));
+            events.push(Event::new(Action::Read));
         }
         events
     }
@@ -295,7 +293,7 @@ mod test {
     fn sstable_from_memtable_test() {
         let mut memtable = MemTable::new();
         for i in 0..5 {
-            memtable.insert(Event::new(Action::READ));
+            memtable.insert(Event::new(Action::Read));
         }
         let mut sstable = SSTable::from_memtable("/tmp", memtable);
         println!("{}", sstable.filepath.display());
@@ -309,7 +307,7 @@ mod test {
     fn sstable_from_file_test() {
         let mut memtable = MemTable::new();
         for i in 0..5 {
-            memtable.insert(Event::new(Action::READ));
+            memtable.insert(Event::new(Action::Read));
         }
         let mut sstable = SSTable::from_memtable("/tmp", memtable);
         sstable.save_to_disk();
@@ -326,7 +324,7 @@ mod test {
         let mut common_id1 = Uuid::from_u128(0);
         let mut common_id2 = Uuid::from_u128(1);
         for i in 0..5 {
-            let mut event = Event::new(Action::READ);
+            let mut event = Event::new(Action::Read);
             if i == 0 {
                 common_id1 = event.id();
                 event.set_payload_str("From epoch 1-1");
@@ -350,7 +348,7 @@ mod test {
 
         let mut memtable2 = MemTable::new();
         for i in 0..5 {
-            let mut event = Event::new(Action::READ);
+            let mut event = Event::new(Action::Read);
             if i == 0 {
                 event.set_id(common_id1);
                 event.set_payload_str("From epoch 2-1");

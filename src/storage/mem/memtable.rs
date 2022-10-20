@@ -87,10 +87,7 @@ impl MemTable {
     /// Get an event from the database.
     /// TODO: Build a Bloom Filter to filter out IDs that do not exist.
     pub(crate) fn get_event(&self, transaction: Uuid) -> Option<Event> {
-        match self.entries.get(&transaction) {
-            Some(event) => Some(event.to_owned()),
-            None => None, // NOTE: unlikely branch once the bloom filter is implemented
-        }
+        self.entries.get(&transaction).map(|event| event.to_owned())
     }
 
     /// This removes the index and returns it
@@ -102,7 +99,7 @@ impl MemTable {
     /// This removes the events
     /// Use only when converting MemTable to SSTable
     pub(crate) fn get_events(&mut self) -> HashMap<Uuid, Event> {
-        mem::replace(&mut self.entries, HashMap::new())
+        mem::take(&mut self.entries)
     }
 }
 
@@ -111,7 +108,7 @@ impl<'a> IntoIterator for &'a MemTable {
     type IntoIter = MemtableIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        MemtableIterator::new(&self)
+        MemtableIterator::new(self)
     }
 }
 
@@ -126,7 +123,7 @@ mod test {
     fn create_events(n: usize) -> Vec<Event> {
         let mut events = Vec::new();
         for _ in 0..n {
-            events.push(Event::new(Action::READ));
+            events.push(Event::new(Action::Read));
         }
         events
     }
@@ -148,7 +145,7 @@ mod test {
                 .map(char::from)
                 .collect();
             let payload = bincode::serialize(&s).unwrap();
-            let mut event = Event::new(Action::READ);
+            let mut event = Event::new(Action::Read);
             event.set_payload(Some(payload));
             events.push(event);
         }
@@ -164,7 +161,7 @@ mod test {
         let mut memtable = MemTable::new();
         let mut events = Vec::new();
         for i in 0..5 {
-            events.push(Event::new(Action::READ));
+            events.push(Event::new(Action::Read));
         }
 
         let event = events.get(0).unwrap().to_owned();
@@ -189,7 +186,7 @@ mod test {
     fn memtable_iterator_test() {
         let mut memtable = MemTable::new();
         for i in 0..5 {
-            memtable.insert(Event::new(Action::READ));
+            memtable.insert(Event::new(Action::Read));
         }
 
         for event in &memtable {

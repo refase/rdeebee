@@ -9,10 +9,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum Action {
-    READ,
-    WRITE,
-    UPDATE,
-    DELETE,
+    Read,
+    Write,
+    Update,
+    Delete,
 }
 
 type Payload = Option<Vec<u8>>;
@@ -49,9 +49,8 @@ impl Event {
     }
 
     pub(crate) fn set_payload_str(&mut self, payload: &str) {
-        match bincode::serialize(payload) {
-            Ok(v) => self.payload = Some(v),
-            Err(_) => {}
+        if let Ok(v) = bincode::serialize(payload) {
+            self.payload = Some(v);
         }
     }
 
@@ -128,9 +127,9 @@ mod test {
 
     #[test]
     fn event_size() {
-        let event1 = Event::new(Action::READ);
+        let event1 = Event::new(Action::Read);
         println!("Event1 size: {}", event1.size());
-        let mut event2 = Event::new(Action::READ);
+        let mut event2 = Event::new(Action::Read);
         event2.set_payload_str("This is payload");
         println!("Event2 size: {}", event2.size());
     }
