@@ -11,7 +11,6 @@ use uuid::Uuid;
 pub(crate) enum Action {
     Read,
     Write,
-    Update,
     Delete,
 }
 
