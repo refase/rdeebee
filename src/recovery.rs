@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fs::OpenOptions, path::PathBuf, time::UNIX_EPOCH};
+use std::{collections::HashMap, env, path::PathBuf};
 
 use crate::storage::{MemTable, WAL};
 
