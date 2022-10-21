@@ -1,5 +1,4 @@
 use std::{
-    env,
     fs::{File, OpenOptions},
     io::{self, BufRead, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
@@ -61,13 +60,13 @@ impl Wal {
     const WAL_NAME: &str = "rdeebee";
 
     /// Create a new Wal.
-    pub(crate) fn new() -> io::Result<Self> {
-        let tmp_dir = env::temp_dir();
+    pub(crate) fn new(dir: &str) -> io::Result<Self> {
+        let dir_path = PathBuf::from(dir);
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros();
-        let temp_file = tmp_dir.join(format!("{}-{}.Wal", Self::WAL_NAME, timestamp));
+        let temp_file = dir_path.join(format!("{}-{}.Wal", Self::WAL_NAME, timestamp));
         let file = OpenOptions::new()
             .append(true)
             .create(true)
@@ -135,9 +134,11 @@ mod test {
 
     use super::Wal;
 
+    const TEST_DIR: &str = "/tmp";
+
     #[test]
     fn write_Wal_test() {
-        let mut Wal = Wal::new().unwrap();
+        let mut Wal = Wal::new(TEST_DIR).unwrap();
         // create two events
         let event1 = Event::new(Action::Read);
         let mut event2 = Event::new(Action::Read);
@@ -152,7 +153,7 @@ mod test {
 
     #[test]
     fn iterate_Wal_test() {
-        let mut Wal = Wal::new().unwrap();
+        let mut Wal = Wal::new(TEST_DIR).unwrap();
         // create two events
         let event1 = Event::new(Action::Read);
         let mut event2 = Event::new(Action::Read);
@@ -177,7 +178,7 @@ mod test {
 
     #[test]
     fn load_Wal_test() {
-        let mut Wal = Wal::new().unwrap();
+        let mut Wal = Wal::new(TEST_DIR).unwrap();
         // create two events
         let event1 = Event::new(Action::Read);
         let mut event2 = Event::new(Action::Read);
