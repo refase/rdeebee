@@ -169,8 +169,8 @@ impl SSTable {
     }
 
     /// Consumes the SSTables to create a new file
-    /// Returns the path where the new data is written
-    pub(crate) fn merge(mut self, other: SSTable) -> PathBuf {
+    /// Returns the new SSTable for the merged data
+    pub(crate) fn merge(mut self, other: SSTable) -> SSTable {
         let mut events = Vec::new();
         let mut deleted_events = Vec::new();
         let epoch1 = Self::get_epoch_from_filename(
@@ -250,7 +250,12 @@ impl SSTable {
         let writer = BufWriter::new(file);
         self.writer = Some(writer);
         self.write_to_file(events).unwrap();
-        filepath
+        Self {
+            epoch,
+            memtable: None,
+            filepath,
+            writer: None,
+        }
     }
 }
 
