@@ -49,9 +49,6 @@ pub(crate) struct MemTable {
 }
 
 impl MemTable {
-    // We will write to disk once we have reached this size.
-    const MAX_SIZE_IN_BYTES: u64 = 2048;
-
     pub(crate) fn new() -> Self {
         Self {
             identifiers: OrderedSkipList::new(),
