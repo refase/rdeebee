@@ -1,6 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     mem,
+    str::FromStr,
     time::SystemTime,
 };
 
@@ -25,11 +26,19 @@ pub(crate) struct Event {
 }
 
 impl Event {
-    pub fn new(action: Action) -> Self {
-        let uuid = Uuid::new_v4();
+    pub(crate) fn new(action: Action) -> Self {
         Self {
             timestamp: SystemTime::now(),
-            transaction_id: uuid,
+            transaction_id: Uuid::new_v4(),
+            action,
+            payload: None,
+        }
+    }
+
+    pub(crate) fn with_id(id: &str, action: Action) -> Self {
+        Self {
+            timestamp: SystemTime::now(),
+            transaction_id: Uuid::from_str(id).expect("failed to use id"),
             action,
             payload: None,
         }
