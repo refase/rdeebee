@@ -1,15 +1,20 @@
-use std::{collections::HashMap, env, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
-use crate::storage::{MemTable, Wal};
+use log::error;
+
+use crate::storage::{MemTable, SSTable, Wal};
 
 /// In case there is a crash of the system and the MemTable is lost,
 /// this will recover MemTable from the latest WAL.
 pub(crate) struct Recovery {}
 
 impl Recovery {
-    pub(crate) fn recover(&self) -> MemTable {
+    pub(crate) fn recover(&self, dir: &str) -> Option<MemTable> {
         let mut memtable = MemTable::new();
-        let (wal_epochs, mut wal_map) = Self::recover_wal_files();
+        let (wal_epochs, mut wal_map) = match self.recover_files(dir, true) {
+            Some(val) => val,
+            None => return None,
+        };
         let wal_epochs_iter = wal_epochs.into_iter();
         for epoch in wal_epochs_iter {
             if let Some((_, path)) = wal_map.remove_entry(&epoch) {
@@ -19,17 +24,42 @@ impl Recovery {
                 }
             }
         }
-        memtable
+        Some(memtable)
     }
 
-    fn recover_wal_files() -> (Vec<u128>, HashMap<u128, PathBuf>) {
-        let tmp_dir = env::temp_dir();
+    pub(crate) fn recover_sstable(&self, dir: &str) -> Option<Vec<SSTable>> {
+        let mut table_vec = Vec::new();
+        let (table_epochs, mut table_map) = match self.recover_files(dir, false) {
+            Some(val) => val,
+            None => return None,
+        };
+        for epoch in table_epochs.into_iter() {
+            match table_map.remove_entry(&epoch) {
+                Some((_, path)) => table_vec.push(SSTable::from_file(path).unwrap()),
+                None => error!("failed to create sstable"),
+            }
+        }
+        Some(table_vec)
+    }
+
+    fn recover_files(&self, dir: &str, wal: bool) -> Option<(Vec<u128>, HashMap<u128, PathBuf>)> {
+        let dir = match PathBuf::from_str(dir) {
+            Ok(d) => d,
+            Err(e) => {
+                error!("failed to get directory in recovery: {}", e);
+                return None;
+            }
+        };
         let mut wal_epochs = Vec::new();
         let mut wal_map = HashMap::new();
-        for entry in tmp_dir.read_dir().unwrap() {
+        for entry in dir.read_dir().unwrap() {
             let path = entry.unwrap().path();
             if let Some(extension) = path.extension().and_then(|s| s.to_str()) {
-                if extension == "wal" {
+                let ext = match wal {
+                    true => "wal",
+                    false => "table",
+                };
+                if extension == ext {
                     let filename = path.file_name().and_then(|f| f.to_str()).unwrap();
                     let epoch = filename
                         .split(|c| (c == '-') || (c == '.'))
@@ -42,7 +72,7 @@ impl Recovery {
             }
         }
         wal_epochs.sort();
-        (wal_epochs, wal_map)
+        Some((wal_epochs, wal_map))
     }
 }
 
@@ -60,7 +90,7 @@ mod test {
     #[test]
     fn recovery_test() {
         let recovery = Recovery {};
-        let memtable = recovery.recover();
+        let memtable = recovery.recover("/tmp").unwrap();
         for event in &memtable {
             println!("Event: {}", event);
         }
