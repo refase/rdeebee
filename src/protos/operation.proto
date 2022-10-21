@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+enum Operation {
+    Read = 0;
+    Write = 1;
+    Delete = 2;
+}
+
+message Request {
+    string key = 1;
+    Operation op = 2; // required
+    string payload = 3;
+}
+
+enum Status {
+    Ok = 0;
+    Invalid_Op = 1;
+    Server_Error = 2;
+}
+
+message Response {
+    string key = 1;
+    Status status = 2; // required
+}
