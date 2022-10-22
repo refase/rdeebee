@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem};
+use std::collections::HashMap;
 
 use skiplist::{ordered_skiplist::Iter, OrderedSkipList};
 use uuid::Uuid;
@@ -57,11 +57,6 @@ impl MemTable {
         }
     }
 
-    // Get number of records in the system
-    pub(crate) fn len(&self) -> usize {
-        self.identifiers.len()
-    }
-
     /// Does this event exist in the MemTable
     pub(crate) fn contains(&self, id: Uuid) -> bool {
         self.identifiers.contains(&id)
@@ -85,18 +80,6 @@ impl MemTable {
     /// TODO: Build a Bloom Filter to filter out IDs that do not exist.
     pub(crate) fn get_event(&self, transaction: Uuid) -> Option<Event> {
         self.entries.get(&transaction).map(|event| event.to_owned())
-    }
-
-    /// This removes the index and returns it
-    /// Use only when converting MemTable to SSTable
-    pub(crate) fn get_index(&mut self) -> OrderedSkipList<Uuid> {
-        mem::replace(&mut self.identifiers, OrderedSkipList::new())
-    }
-
-    /// This removes the events
-    /// Use only when converting MemTable to SSTable
-    pub(crate) fn get_events(&mut self) -> HashMap<Uuid, Event> {
-        mem::take(&mut self.entries)
     }
 }
 

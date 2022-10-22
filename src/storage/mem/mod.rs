@@ -2,6 +2,6 @@ mod bloomfilter;
 mod memtable;
 // mod rbt;
 
-pub use bloomfilter::*;
-pub use memtable::*;
+pub(crate) use bloomfilter::*;
+pub(crate) use memtable::*;
 // pub use rbt::*;

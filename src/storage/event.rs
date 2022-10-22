@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display},
     mem,
-    str::FromStr,
     time::SystemTime,
 };
 
@@ -35,10 +34,10 @@ impl Event {
         }
     }
 
-    pub(crate) fn with_id(id: &str, action: Action) -> Self {
+    pub(crate) fn with_id(id: Uuid, action: Action) -> Self {
         Self {
             timestamp: SystemTime::now(),
-            transaction_id: Uuid::from_str(id).expect("failed to use id"),
+            transaction_id: id,
             action,
             payload: None,
         }
@@ -54,16 +53,6 @@ impl Event {
 
     pub(crate) fn set_payload(&mut self, payload: Payload) {
         self.payload = payload;
-    }
-
-    pub(crate) fn set_payload_str(&mut self, payload: &str) {
-        if let Ok(v) = bincode::serialize(payload) {
-            self.payload = Some(v);
-        }
-    }
-
-    pub(crate) fn timestamp(&self) -> SystemTime {
-        self.timestamp
     }
 
     pub(crate) fn action(&self) -> &Action {
@@ -138,7 +127,7 @@ mod test {
         let event1 = Event::new(Action::Read);
         println!("Event1 size: {}", event1.size());
         let mut event2 = Event::new(Action::Read);
-        event2.set_payload_str("This is payload");
+        event2.set_payload(Some(bincode::serialize("This is payload").unwrap()));
         println!("Event2 size: {}", event2.size());
     }
 }

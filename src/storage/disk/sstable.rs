@@ -1,11 +1,12 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{self, BufRead, BufReader, BufWriter, Write},
     path::PathBuf,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use anyhow::anyhow;
 use uuid::Uuid;
 
 use crate::storage::{Action, Event, MemTable};
@@ -51,16 +52,12 @@ impl Iterator for SSTableIterator {
 /// For the sstable structure, I looked at this [code](https://github.com/DevinZ1993/NaiveKV/blob/main/src/sstable.rs)
 /// and the associated [blog](https://devinz1993.medium.com/naivekv-a-log-structured-storage-engine-bc44bde596b)
 pub(crate) struct SSTable {
-    epoch: u128,
     memtable: Option<MemTable>,
     filepath: PathBuf,
     writer: Option<BufWriter<File>>,
 }
 
 impl SSTable {
-    // We will compact once we have reached this size.
-    const MAX_SIZE_IN_BYTES: u64 = 2048;
-
     const TABLENAME: &str = "rdeebee";
 
     /// Create a table file in the directory provided
@@ -81,7 +78,6 @@ impl SSTable {
             .unwrap();
         let writer = BufWriter::new(file);
         Self {
-            epoch,
             memtable: Some(memtable),
             filepath,
             writer: Some(writer),
@@ -109,7 +105,7 @@ impl SSTable {
     }
 
     /// Saves the SSTable to disk
-    pub(crate) fn save_to_disk(&mut self) -> io::Result<()> {
+    pub(crate) fn save_to_disk(&mut self) -> Result<(), anyhow::Error> {
         let memtable = self.memtable.as_ref().unwrap();
         match &mut self.writer {
             Some(writer) => {
@@ -119,10 +115,10 @@ impl SSTable {
                     writer.write_all("|".as_bytes())?; // delimeter
                 }
                 writer.flush()?;
+                Ok(())
             }
-            None => {}
+            None => Err(anyhow!("failed to get writer error")),
         }
-        Ok(())
     }
 
     /// Consumes the SSTable to write to file
@@ -153,11 +149,7 @@ impl SSTable {
     /// Given an existing file, return an SSTable
     pub(crate) fn from_file(filepath: PathBuf) -> io::Result<Self> {
         log::info!("Opening new segment: {}", &filepath.display());
-        let filename = filepath.file_name().and_then(|f| f.to_str()).unwrap(); // TODO: error handling
-        let epoch = Self::get_epoch_from_filename(filename);
-
         Ok(Self {
-            epoch,
             memtable: None,
             filepath,
             writer: None,
@@ -235,6 +227,9 @@ impl SSTable {
             }
         }
 
+        fs::remove_file(self.filepath.clone()).expect("failed to remove old file");
+        fs::remove_file(other.filepath.clone()).expect("failed to remove old file");
+
         let epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -251,7 +246,6 @@ impl SSTable {
         self.writer = Some(writer);
         self.write_to_file(events).unwrap();
         Self {
-            epoch,
             memtable: None,
             filepath,
             writer: None,

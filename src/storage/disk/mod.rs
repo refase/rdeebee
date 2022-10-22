@@ -1,5 +1,5 @@
 mod sstable;
 mod wal;
 
-pub use sstable::*;
-pub use wal::*;
+pub(crate) use sstable::*;
+pub(crate) use wal::*;

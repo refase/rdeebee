@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use std::{
+    collections::HashMap,
+    io::{self, ErrorKind},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use log::error;
 
@@ -9,12 +14,9 @@ use crate::storage::{MemTable, SSTable, Wal};
 pub(crate) struct Recovery {}
 
 impl Recovery {
-    pub(crate) fn recover(&self, dir: &str) -> Option<MemTable> {
+    pub(crate) fn recover_memtable(&self, dir: &str) -> io::Result<MemTable> {
         let mut memtable = MemTable::new();
-        let (wal_epochs, mut wal_map) = match self.recover_files(dir, true) {
-            Some(val) => val,
-            None => return None,
-        };
+        let (wal_epochs, mut wal_map) = self.recover_files(dir, true)?;
         let wal_epochs_iter = wal_epochs.into_iter();
         for epoch in wal_epochs_iter {
             if let Some((_, path)) = wal_map.remove_entry(&epoch) {
@@ -24,30 +26,31 @@ impl Recovery {
                 }
             }
         }
-        Some(memtable)
+        Ok(memtable)
     }
 
-    pub(crate) fn recover_sstable(&self, dir: &str) -> Option<Vec<SSTable>> {
+    pub(crate) fn recover_sstable(&self, dir: &str) -> io::Result<Vec<SSTable>> {
         let mut table_vec = Vec::new();
-        let (table_epochs, mut table_map) = match self.recover_files(dir, false) {
-            Some(val) => val,
-            None => return None,
-        };
+        let (table_epochs, mut table_map) = self.recover_files(dir, false)?;
         for epoch in table_epochs.into_iter() {
             match table_map.remove_entry(&epoch) {
                 Some((_, path)) => table_vec.push(SSTable::from_file(path).unwrap()),
                 None => error!("failed to create sstable"),
             }
         }
-        Some(table_vec)
+        Ok(table_vec)
     }
 
-    fn recover_files(&self, dir: &str, wal: bool) -> Option<(Vec<u128>, HashMap<u128, PathBuf>)> {
+    fn recover_files(
+        &self,
+        dir: &str,
+        wal: bool,
+    ) -> io::Result<(Vec<u128>, HashMap<u128, PathBuf>)> {
         let dir = match PathBuf::from_str(dir) {
             Ok(d) => d,
             Err(e) => {
                 error!("failed to get directory in recovery: {}", e);
-                return None;
+                return Err(ErrorKind::InvalidInput.into());
             }
         };
         let mut wal_epochs = Vec::new();
@@ -72,7 +75,7 @@ impl Recovery {
             }
         }
         wal_epochs.sort();
-        Some((wal_epochs, wal_map))
+        Ok((wal_epochs, wal_map))
     }
 }
 
@@ -90,7 +93,7 @@ mod test {
     #[test]
     fn recovery_test() {
         let recovery = Recovery {};
-        let memtable = recovery.recover("/tmp").unwrap();
+        let memtable = recovery.recover_memtable("/tmp").unwrap();
         for event in &memtable {
             println!("Event: {}", event);
         }

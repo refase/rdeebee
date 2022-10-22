@@ -102,12 +102,7 @@ impl Wal {
     pub(crate) fn delete_event(&mut self, event_id: Uuid) -> io::Result<()> {
         let mut event = Event::new(Action::Delete);
         event.set_id(event_id);
-        self.add_event(event)
-    }
-
-    // TODO: when to flush?
-    /// Flush the Wal to disk
-    pub(crate) fn flush(&mut self) -> io::Result<()> {
+        self.add_event(event)?;
         self.file.flush()
     }
 }

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, num::Wrapping, rc::Rc};
+use std::num::Wrapping;
 
 use bitvec::{bitvec, prelude::Msb0, vec::BitVec};
 use fasthash::{t1ha, xx};
@@ -8,26 +8,26 @@ use uuid::Uuid;
 /// This is used to figure out if a key exists in the database before ever searching the SSTables.
 /// The bloomfilter guarantees that failed membership test means the key does not exist.
 pub(crate) struct BloomFilter {
-    arr: Rc<RefCell<BFInner>>,
+    arr: BFInner,
 }
 
 impl BloomFilter {
     pub(crate) fn new() -> BloomFilter {
         Self {
-            arr: Rc::new(RefCell::new(BFInner::new())),
+            arr: BFInner::new(),
         }
     }
 
     pub(crate) fn find(&self, id: Uuid) -> bool {
-        self.arr.as_ref().borrow().find(id)
+        self.arr.find(id)
     }
 
     pub(crate) fn add(&mut self, id: Uuid) {
-        self.arr.as_ref().borrow_mut().add(id);
+        self.arr.add(id);
     }
 
     pub(crate) fn delete(&mut self, id: Uuid) {
-        self.arr.as_ref().borrow_mut().delete(id);
+        self.arr.delete(id);
     }
 }
 
@@ -36,7 +36,6 @@ impl BloomFilter {
 
 // check here for the values (for 10M IDs) - https://hur.st/bloomfilter/?n=10000000&p=1.0E-7&m=&k=10
 const BF_SIZE: usize = 56_166_771;
-const NEG_PROB: f64 = 0.0000001;
 const NUM_HASHES: usize = 10;
 
 struct BFInner {
