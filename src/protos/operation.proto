@@ -9,16 +9,19 @@ enum Operation {
 message Request {
     string key = 1;
     Operation op = 2; // required
-    string payload = 3;
+    bytes payload = 3;
 }
 
 enum Status {
     Ok = 0;
     Invalid_Op = 1;
-    Server_Error = 2;
+    Invalid_Key = 2;
+    Server_Error = 3;
 }
 
 message Response {
     string key = 1;
     Status status = 2; // required
+    Operation op = 3;
+    bytes payload = 4;
 }
