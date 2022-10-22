@@ -228,7 +228,7 @@ impl SSTable {
         }
 
         fs::remove_file(self.filepath.clone()).expect("failed to remove old file");
-        fs::remove_file(other.filepath.clone()).expect("failed to remove old file");
+        fs::remove_file(other.filepath).expect("failed to remove old file");
 
         let epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)

@@ -2,7 +2,7 @@ use std::{collections::HashMap, io, mem, str::FromStr};
 
 use log::error;
 use protobuf::EnumOrUnknown;
-use protos::protos::operation::{Operation, Request, Response, Status};
+use protos::wire_format::operation::{Operation, Request, Response, Status};
 use recovery::Recovery;
 use storage::{Action, BloomFilter, Event, MemTable, SSTable, Wal};
 use uuid::Uuid;
