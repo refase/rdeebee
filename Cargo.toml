@@ -5,6 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
+
 [dependencies]
 uuid = { version = "1.2", features = ["v4", "serde"] }
 rbtree = "0.1.5"
@@ -12,5 +20,16 @@ skiplist = "0.4"
 bincode = "1.3.3"
 serde = { version = "1.0.145", features = ["derive"] }
 log = "0.4.17"
+bitvec = "1.0.1"
+fasthash = "0.4"
 thiserror = "1.0.37"
+anyhow = "1.0.66"
 rand = "0.8.5"
+
+tokio = { version = "1.21.2", features = ["full"] }
+protobuf = "3.2"
+
+actix-web = "4.2.1"
+
+[build-dependencies]
+protobuf-codegen = "3.2"
