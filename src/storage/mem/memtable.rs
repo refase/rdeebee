@@ -77,7 +77,6 @@ impl MemTable {
     }
 
     /// Get an event from the database.
-    /// TODO: Build a Bloom Filter to filter out IDs that do not exist.
     pub(crate) fn get_event(&self, transaction: Uuid) -> Option<Event> {
         self.entries.get(&transaction).map(|event| event.to_owned())
     }
