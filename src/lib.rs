@@ -1,14 +1,19 @@
-use std::{collections::HashMap, io, mem, str::FromStr};
+use std::{collections::HashMap, mem, path::PathBuf, str::FromStr};
 
+use errors::StorageEngineError;
 use log::error;
+
 use protobuf::EnumOrUnknown;
 use protos::wire_format::operation::{Operation, Request, Response, Status};
 use recovery::Recovery;
 use storage::{Action, BloomFilter, Event, MemTable, SSTable, Wal};
 use uuid::Uuid;
+mod errors;
 mod protos;
 mod recovery;
 mod storage;
+
+pub use protos::*;
 
 pub struct RDeeBee {
     compaction_size: usize,
@@ -52,26 +57,40 @@ impl RDeeBee {
         self.memtable.size()
     }
 
+    pub fn get_wal_file(&self) -> PathBuf {
+        self.wal.path()
+    }
+
     /// Create a new MemTable.
     /// Save the old MemTable into an SSTable.
-    pub fn compact_memtable(&mut self) {
+    pub fn try_compact_memtable(&mut self) -> Result<(), StorageEngineError> {
         let memtable = mem::replace(&mut self.memtable, MemTable::new());
-        let mut sstable = SSTable::from_memtable(&self.deebee_dir, memtable);
+        let mut sstable = SSTable::from_memtable(&self.deebee_dir, memtable)?;
         match sstable.save_to_disk() {
             Ok(_) => {}
-            Err(e) => error!("failed to write sstable to file: {}", e), // TODO: convert to retry
+            Err(e) => return Err(e), // TODO: convert to retry
         }
-
         self.sstables.push(sstable);
+        // Once this is successful, we create a new wal as well.
+        let wal = match Wal::new(&self.deebee_dir) {
+            Ok(wal) => wal,
+            Err(e) => {
+                error!("failed to create new wal: {}", e);
+                return Err(e); // TODO: error handling - need to retry here.
+            }
+        };
+        let _ = mem::replace(&mut self.wal, wal);
+        Ok(())
     }
 
     /// Remove the two oldest SSTables.
     /// Merge them.
     /// Insert into the front of the vector.
-    pub fn compact_sstables(&mut self) {
+    pub fn compact_sstables(&mut self) -> Result<(), StorageEngineError> {
         let s1 = self.sstables.remove(0);
         let s2 = self.sstables.remove(1);
-        self.sstables.insert(0, s1.merge(s2));
+        self.sstables.insert(0, s1.merge(s2)?);
+        Ok(())
     }
 
     fn extract_id(&self, id: &str) -> Result<Uuid, bool> {
@@ -153,32 +172,37 @@ impl RDeeBee {
 
     /// Get the latest event corresponding to the key.
     /// Return None if key doesn't exist.
-    pub fn get_event_by_key(&self, key: &str) -> Option<Response> {
+    pub fn get_event_by_key(&self, key: &str) -> Response {
+        let mut response = Response::new();
         let uuid = match self.get_key_id(key) {
             Some(uuid) => uuid,
-            None => return None,
+            None => {
+                response.status = EnumOrUnknown::new(Status::Invalid_Key);
+                return response;
+            }
         };
-        if self.bloomfilter.find(uuid) {
-            return None;
+        if !self.bloomfilter.find(uuid) {
+            response.status = EnumOrUnknown::new(Status::Invalid_Key);
+            return response;
         }
-        let mut res = Response::new();
+
         for table in self.sstables.iter().rev() {
             let event = table.get(uuid);
             if let Some(event) = event {
-                res.key = key.to_string();
-                res.status = EnumOrUnknown::new(Status::Ok);
-                res.op = match event.action() {
+                response.key = key.to_string();
+                response.status = EnumOrUnknown::new(Status::Ok);
+                response.op = match event.action() {
                     storage::Action::Read => EnumOrUnknown::new(Operation::Read),
                     storage::Action::Write => EnumOrUnknown::new(Operation::Write),
                     storage::Action::Delete => EnumOrUnknown::new(Operation::Delete),
                 };
                 if let Some(payload) = event.payload() {
-                    res.payload = payload;
+                    response.payload = payload;
                 }
                 break;
             }
         }
-        Some(res)
+        response
     }
 
     /// Get the entire stream of events if they exist
@@ -236,7 +260,7 @@ impl RDeeBee {
         }
     }
 
-    pub fn recover(&mut self) -> io::Result<()> {
+    pub fn recover(&mut self) -> Result<(), StorageEngineError> {
         self.memtable = self.recovery.recover_memtable(&self.deebee_dir)?;
         self.sstables = self.recovery.recover_sstable(&self.deebee_dir)?;
         Ok(())

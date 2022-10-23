@@ -6,17 +6,19 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::anyhow;
 use uuid::Uuid;
 
-use crate::storage::{Action, Event, MemTable};
+use crate::{
+    errors::StorageEngineError,
+    storage::{Action, Event, MemTable},
+};
 
 pub(crate) struct SSTableIterator {
     reader: BufReader<File>,
 }
 
 impl SSTableIterator {
-    fn new(filepath: PathBuf) -> io::Result<Self> {
+    fn new(filepath: PathBuf) -> Result<Self, StorageEngineError> {
         let file = OpenOptions::new().read(true).open(filepath)?;
         let reader = BufReader::new(file);
         Ok(Self { reader })
@@ -62,26 +64,23 @@ impl SSTable {
 
     /// Create a table file in the directory provided
     /// Consumes the MemTable
-    pub(crate) fn from_memtable(dirname: &str, memtable: MemTable) -> Self {
-        let epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros();
-        // TODO: Error handling: Assumes a correct path
-        let dir = PathBuf::from_str(dirname).unwrap();
+    pub(crate) fn from_memtable(
+        dirname: &str,
+        memtable: MemTable,
+    ) -> Result<Self, StorageEngineError> {
+        let epoch = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
+        let dir = PathBuf::from_str(dirname)?;
         let filepath = dir.join(format!("{}-{}.table", Self::TABLENAME, epoch));
-        // TODO: Error handling: Assumes a correct permissions
         let file = OpenOptions::new()
             .append(true)
             .create(true)
-            .open(&filepath)
-            .unwrap();
+            .open(&filepath)?;
         let writer = BufWriter::new(file);
-        Self {
+        Ok(Self {
             memtable: Some(memtable),
             filepath,
             writer: Some(writer),
-        }
+        })
     }
 
     /// Does this event exist in the SSTable
@@ -105,29 +104,34 @@ impl SSTable {
     }
 
     /// Saves the SSTable to disk
-    pub(crate) fn save_to_disk(&mut self) -> Result<(), anyhow::Error> {
-        let memtable = self.memtable.as_ref().unwrap();
+    pub(crate) fn save_to_disk(&mut self) -> Result<(), StorageEngineError> {
+        let memtable = match self.memtable.as_ref() {
+            Some(memtable) => memtable,
+            None => return Err(StorageEngineError::InvalidMemTable),
+        };
         match &mut self.writer {
             Some(writer) => {
                 for event in memtable {
-                    let event_ser = bincode::serialize(&event).unwrap(); // TODO: convert to and return `thiserror`
+                    let event_ser = bincode::serialize(&event)?;
                     writer.write_all(&event_ser)?;
                     writer.write_all("|".as_bytes())?; // delimeter
                 }
                 writer.flush()?;
                 Ok(())
             }
-            None => Err(anyhow!("failed to get writer error")),
+            None => Err(StorageEngineError::InvalidSSTableWriter(
+                self.filepath.clone(),
+            )),
         }
     }
 
     /// Consumes the SSTable to write to file
     /// Used when merging
-    pub(crate) fn write_to_file(mut self, events: Vec<Event>) -> io::Result<()> {
+    pub(crate) fn write_to_file(mut self, events: Vec<Event>) -> Result<(), StorageEngineError> {
         match &mut self.writer {
             Some(writer) => {
                 for event in events {
-                    let event_ser = bincode::serialize(&event).unwrap(); // TODO: convert to and return `thiserror`
+                    let event_ser = bincode::serialize(&event)?;
                     writer.write_all(&event_ser)?;
                     writer.write_all("|".as_bytes())?; // delimeter
                 }
@@ -138,12 +142,11 @@ impl SSTable {
         Ok(())
     }
 
-    fn get_epoch_from_filename(filename: &str) -> u128 {
-        filename
+    fn get_epoch_from_filename(filename: &str) -> Result<u128, StorageEngineError> {
+        Ok(filename
             .split(|c| (c == '-') || (c == '.'))
             .collect::<Vec<&str>>()[1]
-            .parse::<u128>()
-            .unwrap() // TODO: error handling
+            .parse::<u128>()?)
     }
 
     /// Given an existing file, return an SSTable
@@ -162,15 +165,30 @@ impl SSTable {
 
     /// Consumes the SSTables to create a new file
     /// Returns the new SSTable for the merged data
-    pub(crate) fn merge(mut self, other: SSTable) -> SSTable {
+    pub(crate) fn merge(mut self, other: SSTable) -> Result<SSTable, StorageEngineError> {
         let mut events = Vec::new();
         let mut deleted_events = Vec::new();
-        let epoch1 = Self::get_epoch_from_filename(
-            self.filepath.file_name().and_then(|f| f.to_str()).unwrap(),
-        );
-        let epoch2 = Self::get_epoch_from_filename(
-            other.filepath.file_name().and_then(|f| f.to_str()).unwrap(),
-        );
+
+        let self_file = match self.filepath.file_name().and_then(|f| f.to_str()) {
+            Some(path) => path,
+            None => {
+                return Err(StorageEngineError::InvalidSSTableFilePath(
+                    self.filepath.clone(),
+                ))
+            }
+        };
+
+        let other_file = match other.filepath.file_name().and_then(|f| f.to_str()) {
+            Some(path) => path,
+            None => {
+                return Err(StorageEngineError::InvalidSSTableFilePath(
+                    self.filepath.clone(),
+                ))
+            }
+        };
+
+        let epoch1 = Self::get_epoch_from_filename(self_file)?;
+        let epoch2 = Self::get_epoch_from_filename(other_file)?;
 
         let mut iter1 = self.iter();
         let mut iter2 = other.iter();
@@ -230,26 +248,27 @@ impl SSTable {
         fs::remove_file(self.filepath.clone()).expect("failed to remove old file");
         fs::remove_file(other.filepath).expect("failed to remove old file");
 
-        let epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros();
+        let epoch = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
 
-        let dir = self.filepath.parent().unwrap().to_owned();
+        let dir = match self.filepath.parent() {
+            Some(dir) => dir,
+            None => return Err(StorageEngineError::InvalidDbDir(self.filepath)),
+        };
+
+        let dir = dir.to_owned();
         let filepath = dir.join(format!("{}-{}.table", Self::TABLENAME, epoch));
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&filepath)
-            .unwrap();
+            .open(&filepath)?;
         let writer = BufWriter::new(file);
         self.writer = Some(writer);
-        self.write_to_file(events).unwrap();
-        Self {
+        self.write_to_file(events)?;
+        Ok(Self {
             memtable: None,
             filepath,
             writer: None,
-        }
+        })
     }
 }
 

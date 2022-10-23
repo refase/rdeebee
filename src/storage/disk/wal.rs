@@ -7,7 +7,10 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::storage::{Action, Event};
+use crate::{
+    errors::StorageEngineError,
+    storage::{Action, Event},
+};
 
 /// This is the Write-Ahead Log
 /// This part, again, follows this [blog](https://adambcomer.com/blog/simple-database/Wal/)
@@ -60,12 +63,9 @@ impl Wal {
     const WAL_NAME: &str = "rdeebee";
 
     /// Create a new Wal.
-    pub(crate) fn new(dir: &str) -> io::Result<Self> {
+    pub(crate) fn new(dir: &str) -> Result<Self, StorageEngineError> {
         let dir_path = PathBuf::from(dir);
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
         let temp_file = dir_path.join(format!("{}-{}.Wal", Self::WAL_NAME, timestamp));
         let file = OpenOptions::new()
             .append(true)
@@ -89,21 +89,26 @@ impl Wal {
         })
     }
 
+    /// Get the file path to the current wal file.
+    pub(crate) fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
     /// Add an event to the Wal
-    // TODO: convert return type to `thiserror`
-    pub(crate) fn add_event(&mut self, event: Event) -> io::Result<()> {
-        let event_ser = bincode::serialize(&event).unwrap(); // TODO: convert to and return `thiserror`
+    pub(crate) fn add_event(&mut self, event: Event) -> Result<(), StorageEngineError> {
+        let event_ser = bincode::serialize(&event)?;
         self.file.write_all(&event_ser)?;
         self.file.write_all("|".as_bytes())?; // delimiter
         Ok(())
     }
 
     /// Append a delete operation to the Wal
-    pub(crate) fn delete_event(&mut self, event_id: Uuid) -> io::Result<()> {
+    pub(crate) fn delete_event(&mut self, event_id: Uuid) -> Result<(), StorageEngineError> {
         let mut event = Event::new(Action::Delete);
         event.set_id(event_id);
         self.add_event(event)?;
-        self.file.flush()
+        self.file.flush()?;
+        Ok(())
     }
 }
 
