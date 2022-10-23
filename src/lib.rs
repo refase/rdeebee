@@ -64,12 +64,12 @@ impl RDeeBee {
 
     /// Create a new MemTable.
     /// Save the old MemTable into an SSTable.
-    pub fn try_compact_memtable(&mut self) -> Result<(), StorageEngineError> {
+    pub fn try_memtable_compact(&mut self) -> Result<(), StorageEngineError> {
         let memtable = mem::replace(&mut self.memtable, MemTable::new());
         let mut sstable = SSTable::from_memtable(&self.deebee_dir, memtable)?;
         match sstable.save_to_disk() {
             Ok(_) => {}
-            Err(e) => return Err(e), // TODO: convert to retry
+            Err(e) => return Err(e),
         }
         self.sstables.push(sstable);
         // Once this is successful, we create a new wal as well.
@@ -77,7 +77,7 @@ impl RDeeBee {
             Ok(wal) => wal,
             Err(e) => {
                 error!("failed to create new wal: {}", e);
-                return Err(e); // TODO: error handling - need to retry here.
+                return Err(e);
             }
         };
         let _ = mem::replace(&mut self.wal, wal);
@@ -87,7 +87,7 @@ impl RDeeBee {
     /// Remove the two oldest SSTables.
     /// Merge them.
     /// Insert into the front of the vector.
-    pub fn compact_sstables(&mut self) -> Result<(), StorageEngineError> {
+    pub fn try_sstables_compact(&mut self) -> Result<(), StorageEngineError> {
         let s1 = self.sstables.remove(0);
         let s2 = self.sstables.remove(1);
         self.sstables.insert(0, s1.merge(s2)?);
