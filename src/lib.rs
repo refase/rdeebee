@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, fs, mem, path::PathBuf, str::FromStr};
 
 use errors::StorageEngineError;
 use log::error;
@@ -27,15 +27,16 @@ pub struct RDeeBee {
 }
 
 impl RDeeBee {
-    pub fn new(compaction_size: usize, dir: String) -> Option<Self> {
+    pub fn new(compaction_size: usize, dir: String) -> Result<Self, StorageEngineError> {
+        fs::create_dir(dir.clone())?;
         let wal = match Wal::new(&dir) {
             Ok(wal) => wal,
             Err(e) => {
                 error!("failed to create the wal: {}", e);
-                return None;
+                return Err(e);
             }
         };
-        Some(Self {
+        Ok(Self {
             compaction_size,
             deebee_dir: dir,
             wal,

@@ -46,7 +46,7 @@ impl Recovery {
         let mut wal_epochs = Vec::new();
         let mut wal_map = HashMap::new();
         for entry in dir.read_dir()? {
-            let path = entry.unwrap().path();
+            let path = entry?.path();
             if let Some(extension) = path.extension().and_then(|s| s.to_str()) {
                 let ext = match wal {
                     true => "wal",
