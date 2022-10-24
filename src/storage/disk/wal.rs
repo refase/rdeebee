@@ -66,7 +66,7 @@ impl Wal {
     pub(crate) fn new(dir: &str) -> Result<Self, StorageEngineError> {
         let dir_path = PathBuf::from(dir);
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
-        let temp_file = dir_path.join(format!("{}-{}.Wal", Self::WAL_NAME, timestamp));
+        let temp_file = dir_path.join(format!("{}-{}.wal", Self::WAL_NAME, timestamp));
         let file = OpenOptions::new()
             .append(true)
             .create(true)
