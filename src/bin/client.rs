@@ -1,23 +1,46 @@
-use std::{error::Error, str};
+use anyhow::Ok;
+use clap::{arg, command, Parser, Subcommand};
+use protobuf::{CodedInputStream, EnumOrUnknown, Message};
+use rdeebee::wire_format::operation::{Operation, Request, Response};
+use std::str;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
-/// I decided to go with an HTTP server that provides a simply REST API to access the event store.
-/// The API:
-///     1. '/get/{key}': Get the latest event corresponding to the key if it exists.
-///     2. '/stream/{key}': Subscribe to this key (TODO:)
-///     3. '/add/
-
 const SERVER_PORT: u16 = 2048;
 
+#[derive(Debug, Subcommand)]
+enum Action {
+    Read,
+    Write,
+    Delete,
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    operation: Action,
+    #[arg(short, long)]
+    key: String,
+    #[arg(short, long)]
+    payload: Option<String>,
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+
     let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT)).await?;
     println!("Created a new stream");
 
-    let result = stream.write(b"Hello World!").await;
+    let request = create_request(args.operation, &args.key, args.payload)?;
+
+    let request_bytes = request.write_length_delimited_to_bytes()?;
+
+    let result = stream.write(&request_bytes).await;
+
     println!("wrote to stream; success={:?}", result.is_ok());
 
     println!("awaiting reply...");
@@ -28,11 +51,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await
         .expect("Error reading from server");
     if n != 0 {
-        println!(
-            "Data: {}",
-            str::from_utf8(&reply[0..n]).expect("failed to read server data")
-        );
+        let mut input_stream = CodedInputStream::from_bytes(&mut reply);
+        let response: Response = input_stream.read_message().expect("failed to read back");
+        println!("Response:");
+        println!("\tResponse Key: {:#?}", response.key);
+        println!("\tResponse Operation: {:#?}", response.key);
+        println!("\tResponse Status: {:#?}", response.status);
+        if !response.payload.is_empty() {
+            let payload: String = bincode::deserialize(&response.payload).unwrap();
+            println!("\tPayload: {}", payload);
+        }
     }
 
     Ok(())
+}
+
+fn create_request(action: Action, key: &str, payload: Option<String>) -> anyhow::Result<Request> {
+    let mut request = Request::new();
+    request.key = key.to_string();
+    request.op = match action {
+        Action::Read => EnumOrUnknown::new(Operation::Read),
+        Action::Write => EnumOrUnknown::new(Operation::Write),
+        Action::Delete => EnumOrUnknown::new(Operation::Delete),
+    };
+    if let Some(payload) = payload {
+        let payload = bincode::serialize(&payload)?;
+        request.payload = payload;
+    }
+    Ok(request)
 }
