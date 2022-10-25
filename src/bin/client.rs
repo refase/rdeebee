@@ -55,7 +55,10 @@ async fn main() -> anyhow::Result<()> {
         let response: Response = input_stream.read_message().expect("failed to read back");
         println!("Response:");
         println!("\tResponse Key: {:#?}", response.key);
-        println!("\tResponse Operation: {:#?}", response.key);
+        println!(
+            "\tResponse Operation: {:#?}",
+            response.op.enum_value().unwrap()
+        );
         println!("\tResponse Status: {:#?}", response.status);
         if !response.payload.is_empty() {
             let payload: String = bincode::deserialize(&response.payload).unwrap();
