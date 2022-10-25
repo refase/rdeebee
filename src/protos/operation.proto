@@ -1,9 +1,9 @@
 syntax = "proto3";
 
 enum Operation {
-    Read = 0;
-    Write = 1;
-    Delete = 2;
+    Read = 1;
+    Write = 2;
+    Delete = 3;
 }
 
 message Request {
@@ -13,10 +13,10 @@ message Request {
 }
 
 enum Status {
-    Ok = 0;
-    Invalid_Op = 1;
-    Invalid_Key = 2;
-    Server_Error = 3;
+    Ok = 1;
+    Invalid_Op = 2;
+    Invalid_Key = 3;
+    Server_Error = 4;
 }
 
 message Response {
