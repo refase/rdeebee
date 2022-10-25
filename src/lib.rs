@@ -28,7 +28,7 @@ pub struct RDeeBee {
 
 impl RDeeBee {
     pub fn new(compaction_size: usize, dir: String) -> Result<Self, StorageEngineError> {
-        fs::create_dir(dir.clone())?;
+        fs::create_dir_all(dir.clone())?; // create any of the paths if they don't exist
         let wal = match Wal::new(&dir) {
             Ok(wal) => wal,
             Err(e) => {
@@ -58,6 +58,7 @@ impl RDeeBee {
         self.memtable.size()
     }
 
+    /// Get the Wal file
     pub fn get_wal_file(&self) -> PathBuf {
         self.wal.path()
     }
@@ -130,6 +131,7 @@ impl RDeeBee {
             }
             None => {
                 let event = Event::new(action);
+                self.key_to_id_map.insert(req.key.clone(), event.id());
                 self.bloomfilter.add(event.id());
                 event
             }
@@ -187,21 +189,39 @@ impl RDeeBee {
             return response;
         }
 
-        for table in self.sstables.iter().rev() {
-            let event = table.get(uuid);
-            if let Some(event) = event {
-                response.key = key.to_string();
-                response.status = EnumOrUnknown::new(Status::Ok);
-                response.op = match event.action() {
-                    storage::Action::Read => EnumOrUnknown::new(Operation::Read),
-                    storage::Action::Write => EnumOrUnknown::new(Operation::Write),
-                    storage::Action::Delete => EnumOrUnknown::new(Operation::Delete),
-                };
-                if let Some(payload) = event.payload() {
-                    response.payload = payload;
+        let mut ret_event = Event::new(Action::Read); // default to bypass uninitialized memory
+        let mut found_event = false;
+
+        for event in &self.memtable {
+            ret_event = event;
+            found_event = true;
+            break;
+        }
+
+        if !found_event {
+            for table in self.sstables.iter().rev() {
+                let event = table.get(uuid);
+                if let Some(event) = event {
+                    ret_event = event;
+                    found_event = true;
+                    break;
                 }
-                break;
             }
+        }
+
+        response.key = key.to_string();
+        if found_event {
+            response.status = EnumOrUnknown::new(Status::Ok);
+            response.op = match ret_event.action() {
+                storage::Action::Read => EnumOrUnknown::new(Operation::Read),
+                storage::Action::Write => EnumOrUnknown::new(Operation::Write),
+                storage::Action::Delete => EnumOrUnknown::new(Operation::Delete),
+            };
+            if let Some(payload) = ret_event.payload() {
+                response.payload = payload;
+            }
+        } else {
+            response.status = EnumOrUnknown::new(Status::Invalid_Key);
         }
         response
     }
