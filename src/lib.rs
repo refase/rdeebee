@@ -89,6 +89,9 @@ impl RDeeBee {
     /// Merge them.
     /// Insert into the front of the vector.
     pub fn try_sstables_compact(&mut self) -> Result<(), StorageEngineError> {
+        if self.sstables.len() < 2 {
+            return Ok(());
+        }
         let s1 = self.sstables.remove(0);
         let s2 = self.sstables.remove(1);
         self.sstables.insert(0, s1.merge(s2)?);
