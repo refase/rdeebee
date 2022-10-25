@@ -113,9 +113,8 @@ async fn main_task(
                 event_notifier,
                 compaction_notifier,
             )
-            .await
-        })
-        .await?;
+            .await;
+        });
     }
 }
 
