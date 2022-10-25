@@ -291,7 +291,7 @@ async fn handle_client(
 
     let request: Request;
 
-    // Ensure we the coded input stream goes out of scope before the next await is hit.
+    // Ensure we coded input stream goes out of scope before the next await is hit.
     {
         let mut input_stream = CodedInputStream::from_bytes(&mut raw);
         request = match input_stream.read_message() {
