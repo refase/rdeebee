@@ -8,7 +8,8 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    errors::StorageEngineError, event::{Event, Action},
+    errors::StorageEngineError,
+    event::{Action, Event},
 };
 
 /// This is the Write-Ahead Log
@@ -102,8 +103,12 @@ impl Wal {
     }
 
     /// Append a delete operation to the Wal
-    pub(crate) fn delete_event(&mut self, event_id: Uuid) -> Result<(), StorageEngineError> {
-        let mut event = Event::new(Action::Delete);
+    pub(crate) fn delete_event(
+        &mut self,
+        event_id: Uuid,
+        seq: u64,
+    ) -> Result<(), StorageEngineError> {
+        let mut event = Event::new(Action::Delete, seq);
         event.set_id(event_id);
         self.add_event(event)?;
         self.file.flush()?;

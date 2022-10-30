@@ -18,25 +18,25 @@ type Payload = Option<Vec<u8>>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Event {
-    timestamp: SystemTime,
+    sequence_num: u64,
     transaction_id: Uuid,
     action: Action,
     payload: Payload,
 }
 
 impl Event {
-    pub(crate) fn new(action: Action) -> Self {
+    pub(crate) fn new(action: Action, seq: u64) -> Self {
         Self {
-            timestamp: SystemTime::now(),
+            sequence_num: seq,
             transaction_id: Uuid::new_v4(),
             action,
             payload: None,
         }
     }
 
-    pub(crate) fn with_id(id: Uuid, action: Action) -> Self {
+    pub(crate) fn with_id(id: Uuid, action: Action, seq: u64) -> Self {
         Self {
-            timestamp: SystemTime::now(),
+            sequence_num: seq,
             transaction_id: id,
             action,
             payload: None,
@@ -107,12 +107,12 @@ impl Display for Event {
                 let payload_str = bincode::deserialize::<&str>(&payload).unwrap();
                 f.write_str(&format!(
                     "Time: {:#?}, ID: {}, Action: {:#?}\nPayload: {}",
-                    self.timestamp, self.transaction_id, self.action, payload_str
+                    self.sequence_num, self.transaction_id, self.action, payload_str
                 ))
             }
             None => f.write_str(&format!(
                 "Time: {:#?}, ID: {}, Action: {:#?}",
-                self.timestamp, self.transaction_id, self.action
+                self.sequence_num, self.transaction_id, self.action
             )),
         }
     }
@@ -124,9 +124,9 @@ mod test {
 
     #[test]
     fn event_size() {
-        let event1 = Event::new(Action::Read);
+        let event1 = Event::new(Action::Read, 0);
         println!("Event1 size: {}", event1.size());
-        let mut event2 = Event::new(Action::Read);
+        let mut event2 = Event::new(Action::Read, 1);
         event2.set_payload(Some(bincode::serialize("This is payload").unwrap()));
         println!("Event2 size: {}", event2.size());
     }

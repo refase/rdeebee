@@ -9,7 +9,8 @@ enum Operation {
 message Request {
     string key = 1;
     Operation op = 2; // required
-    bytes payload = 3;
+    uint64 seq = 3;
+    bytes payload = 4;
 }
 
 enum Status {
@@ -23,5 +24,6 @@ message Response {
     string key = 1;
     Status status = 2; // required
     Operation op = 3;
-    bytes payload = 4;
+    uint64 seq = 4;
+    bytes payload = 5;
 }
