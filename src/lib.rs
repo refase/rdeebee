@@ -129,13 +129,14 @@ impl RDeeBee {
                 return response;
             }
         };
+        let seq = req.seq;
         let mut event = match self.get_key_id(&req.key) {
             Some(id) => {
                 self.key_to_id_map.insert(req.key.clone(), id);
-                Event::with_id(id, action)
+                Event::with_id(id, action, seq)
             }
             None => {
-                let event = Event::new(action);
+                let event = Event::new(action, seq);
                 self.key_to_id_map.insert(req.key.clone(), event.id());
                 self.bloomfilter.add(event.id());
                 event
@@ -189,40 +190,40 @@ impl RDeeBee {
                 return response;
             }
         };
+
+        // check if Bloom Filter says event exists
         if !self.bloomfilter.find(uuid) {
             response.status = EnumOrUnknown::new(Status::Invalid_Key);
             return response;
         }
 
-        let mut ret_event = Event::new(Action::Read); // default to bypass uninitialized memory
-        let mut found_event = false;
+        let mut ret_event = None;
 
+        // check if event is in memtable
         for event in &self.memtable {
-            ret_event = event;
-            found_event = true;
-            break;
+            ret_event = Some(event);
         }
 
-        if !found_event {
+        // check if event is not in memtable then if it is in one of the SSTables.
+        if ret_event.is_none() {
             for table in self.sstables.iter().rev() {
                 let event = table.get(uuid);
                 if let Some(event) = event {
-                    ret_event = event;
-                    found_event = true;
+                    ret_event = Some(event);
                     break;
                 }
             }
         }
 
         response.key = key.to_string();
-        if found_event {
+        if let Some(event) = ret_event {
             response.status = EnumOrUnknown::new(Status::Ok);
-            response.op = match ret_event.action() {
+            response.op = match event.action() {
                 Action::Read => EnumOrUnknown::new(Operation::Read),
                 Action::Write => EnumOrUnknown::new(Operation::Write),
                 Action::Delete => EnumOrUnknown::new(Operation::Delete),
             };
-            if let Some(payload) = ret_event.payload() {
+            if let Some(payload) = event.payload() {
                 response.payload = payload;
             }
         } else {
@@ -262,7 +263,7 @@ impl RDeeBee {
         Some(responses)
     }
 
-    pub fn delete_event(&mut self, key: &str) -> Response {
+    pub fn delete_event(&mut self, key: &str, seq: u64) -> Response {
         let mut response = Response::new();
         response.key = key.to_string();
         let id = match self.get_key_id(key) {
@@ -273,7 +274,7 @@ impl RDeeBee {
             }
         };
         self.bloomfilter.delete(id);
-        match self.wal.delete_event(id) {
+        match self.wal.delete_event(id, seq) {
             Ok(_) => {
                 response.status = EnumOrUnknown::new(Status::Ok);
                 response
