@@ -15,13 +15,11 @@ type Seq struct {
 
 type redisConn struct {
 	pool *redis.Pool
-	conn redis.Conn
 }
 
 func newRedisConn() redisConn {
 	pool := newPool()
-	conn := getConnection(*pool)
-	return redisConn{pool, conn}
+	return redisConn{pool}
 }
 
 func newPool() *redis.Pool {
@@ -49,14 +47,16 @@ func getConnection(redis_pool redis.Pool) redis.Conn {
 }
 
 func (r *redisConn) flush() {
-	_, err := r.conn.Do("flushall")
+	conn := getConnection(*r.pool)
+	_, err := conn.Do("flushall")
 	if err != nil {
 		log.Panic(err)
 	}
 }
 
 func (r *redisConn) cas(svc string) uint64 {
-	val, err := redis.Uint64(r.conn.Do("incr", svc))
+	conn := getConnection(*r.pool)
+	val, err := redis.Uint64(conn.Do("incr", svc))
 	if err != nil {
 		log.Panic(err)
 	}
