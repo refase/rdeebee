@@ -37,3 +37,9 @@ Check that there are no common lines:
 ```bash
 comm -1 -2 --nocheck-order --total test1.log test2.log
 ```
+
+## Working Branches
+
+- The `main` branch is the development branch.
+- Each sub-component, like `database`, has their own branch.
+- The sub-branches are not standalone. Rather they are used as a way of checkpointing.
