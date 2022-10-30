@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     errors::StorageEngineError,
-    storage::{Action, Event, MemTable},
+    event::{Action, Event},
+    storage::MemTable,
 };
 
 pub(crate) struct SSTableIterator {

@@ -6,13 +6,15 @@ use log::error;
 use protobuf::EnumOrUnknown;
 use protos::wire_format::operation::{Operation, Request, Response, Status};
 use recovery::Recovery;
-use storage::{Action, BloomFilter, Event, MemTable, SSTable, Wal};
+use storage::{BloomFilter, MemTable, SSTable, Wal};
 use uuid::Uuid;
 mod errors;
+mod event;
 mod protos;
 mod recovery;
 mod storage;
 
+pub(crate) use event::*;
 pub use protos::*;
 
 pub struct RDeeBee {
@@ -216,9 +218,9 @@ impl RDeeBee {
         if found_event {
             response.status = EnumOrUnknown::new(Status::Ok);
             response.op = match ret_event.action() {
-                storage::Action::Read => EnumOrUnknown::new(Operation::Read),
-                storage::Action::Write => EnumOrUnknown::new(Operation::Write),
-                storage::Action::Delete => EnumOrUnknown::new(Operation::Delete),
+                Action::Read => EnumOrUnknown::new(Operation::Read),
+                Action::Write => EnumOrUnknown::new(Operation::Write),
+                Action::Delete => EnumOrUnknown::new(Operation::Delete),
             };
             if let Some(payload) = ret_event.payload() {
                 response.payload = payload;
@@ -247,9 +249,9 @@ impl RDeeBee {
                 res.key = key.to_string();
                 res.status = EnumOrUnknown::new(Status::Ok);
                 res.op = match event.action() {
-                    storage::Action::Read => EnumOrUnknown::new(Operation::Read),
-                    storage::Action::Write => EnumOrUnknown::new(Operation::Write),
-                    storage::Action::Delete => EnumOrUnknown::new(Operation::Delete),
+                    Action::Read => EnumOrUnknown::new(Operation::Read),
+                    Action::Write => EnumOrUnknown::new(Operation::Write),
+                    Action::Delete => EnumOrUnknown::new(Operation::Delete),
                 };
                 if let Some(payload) = event.payload() {
                     res.payload = payload;

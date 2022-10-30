@@ -8,8 +8,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    errors::StorageEngineError,
-    storage::{Action, Event},
+    errors::StorageEngineError, event::{Event, Action},
 };
 
 /// This is the Write-Ahead Log

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use skiplist::{ordered_skiplist::Iter, OrderedSkipList};
 use uuid::Uuid;
 
-use crate::storage::Event;
+use crate::event::Event;
 
 pub(crate) struct MemtableIterator<'a> {
     memtable: &'a MemTable,
