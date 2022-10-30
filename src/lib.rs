@@ -263,10 +263,10 @@ impl RDeeBee {
         Some(responses)
     }
 
-    pub fn delete_event(&mut self, key: &str, seq: u64) -> Response {
+    pub fn delete_event(&mut self, request: Request) -> Response {
         let mut response = Response::new();
-        response.key = key.to_string();
-        let id = match self.get_key_id(key) {
+        response.key = request.key.clone();
+        let id = match self.get_key_id(&request.key) {
             Some(id) => id,
             None => {
                 response.status = EnumOrUnknown::new(Status::Invalid_Key);
@@ -274,7 +274,7 @@ impl RDeeBee {
             }
         };
         self.bloomfilter.delete(id);
-        match self.wal.delete_event(id, seq) {
+        match self.wal.delete_event(id, request.seq) {
             Ok(_) => {
                 response.status = EnumOrUnknown::new(Status::Ok);
                 response

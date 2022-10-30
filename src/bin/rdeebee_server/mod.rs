@@ -77,7 +77,7 @@ impl RDeeBeeServer {
     pub(crate) fn delete_event(&self, request: operation::Request) -> anyhow::Result<()> {
         match self.rdeebee.as_ref().try_write() {
             Some(mut guard) => {
-                guard.delete_event(&request.key);
+                guard.delete_event(request);
                 Ok(())
             }
             None => {
