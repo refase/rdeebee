@@ -7,3 +7,33 @@ This system is inspired by Martin Kleppman's arguments that Event Sourcing syste
 The overall idea behind this project is to implement a distributed event database that also provides `change data capture`. Something that would combine the command and query (CQRS designs) side databases/message buses a bit.
 
 The overall goal is to learn about design and design tradeoffs by making them.
+
+## Sequencing the Writes
+
+We use Redis `incr` function to atomically generate sequence numbers and expose that through a web server.
+
+### Testing concurrent access
+
+Write a `source.txt`
+
+```txt
+URL = localhost:6379
+```
+
+On two separate windows, start two clients:
+
+```bash
+while true; do curl -K source.txt >> test1.log; done
+```
+
+and
+
+```bash
+while true; do curl -K source.txt >> test2.log; done
+```
+
+Check that there are no common lines:
+
+```bash
+comm -1 -2 --nocheck-order --total test1.log test2.log
+```
