@@ -14,6 +14,12 @@ We use Redis `incr` function to atomically generate sequence numbers and expose 
 
 ### Testing concurrent access
 
+Forward the redis port from the container (and change the address in `main.go` to `localhost`).
+
+```bash
+kubectl port-forward redis-0 6379:6379
+```
+
 Write a `source.txt`
 
 ```txt
