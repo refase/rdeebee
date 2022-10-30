@@ -2,6 +2,7 @@ use anyhow::Ok;
 use clap::{arg, command, Parser, Subcommand};
 use protobuf::{CodedInputStream, EnumOrUnknown, Message};
 use rdeebee::wire_format::operation::{Operation, Request, Response};
+use serde::Deserialize;
 use std::str;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -9,6 +10,12 @@ use tokio::{
 };
 
 const SERVER_PORT: u16 = 2048;
+
+#[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
+struct SeqStruct {
+    Sequence: u64,
+}
 
 #[derive(Debug, Subcommand)]
 enum Action {
@@ -35,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT)).await?;
     println!("Created a new stream");
 
-    let request = create_request(args.operation, &args.key, args.payload)?;
+    let request = create_request(args.operation, &args.key, args.payload).await?;
 
     let request_bytes = request.write_length_delimited_to_bytes()?;
 
@@ -69,7 +76,11 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_request(action: Action, key: &str, payload: Option<String>) -> anyhow::Result<Request> {
+async fn create_request(
+    action: Action,
+    key: &str,
+    payload: Option<String>,
+) -> anyhow::Result<Request> {
     let mut request = Request::new();
     request.key = key.to_string();
     request.op = match action {
@@ -77,6 +88,17 @@ fn create_request(action: Action, key: &str, payload: Option<String>) -> anyhow:
         Action::Write => EnumOrUnknown::new(Operation::Write),
         Action::Delete => EnumOrUnknown::new(Operation::Delete),
     };
+    let seq: SeqStruct = match action {
+        Action::Write | Action::Delete => {
+            let seq_str = reqwest::get("http://localhost:8080").await?.text().await?;
+            println!("Sequence string: {}", &seq_str);
+            serde_json::from_str(&seq_str)?
+        },
+        Action::Read => SeqStruct { Sequence: 0 },
+    };
+
+    request.seq = seq.Sequence;
+    
     if let Some(payload) = payload {
         let payload = bincode::serialize(&payload)?;
         request.payload = payload;
