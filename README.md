@@ -50,6 +50,20 @@ Check that there are no common lines:
 comm -1 -2 --nocheck-order --total test1.log test2.log
 ```
 
+## Port Forwarding for Testing
+
+Redis:
+
+```bash
+kubectl port-forward svc/redis 6379:6379 
+```
+
+Consul:
+
+```bash
+ kubectl port-forward svc/consul-server 8500:8500 -n consul
+```
+
 ## Working Branches
 
 - The `main` branch is the development branch.
