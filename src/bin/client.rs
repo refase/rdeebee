@@ -9,6 +9,8 @@ use tokio::{
     net::TcpStream,
 };
 
+mod rdeebee_common;
+
 const SERVER_PORT: u16 = 2048;
 
 #[derive(Debug, Deserialize)]
