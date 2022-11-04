@@ -2,6 +2,8 @@
 
 Follow this [blog series](https://towardsdev.com/a-data-system-from-scratch-in-rust-part-1-an-idea-3911059883ec) for more details on this project.
 
+Lookup my detailed [article](https://bhattacharya-ratnadeep.medium.com/storing-distributed-data-879f530a1ad6) on possibly a new way of sharding and replicating.
+
 This system is inspired by Martin Kleppman's arguments that Event Sourcing system and Databases are rather two sides of the same coin. It's an area that fascinates me and I wanted to work on the internals of a system like this as far as possible. This desire gave birth to `rdeebee`.
 
 The overall idea behind this project is to implement a distributed event database that also provides `change data capture`. Something that would combine the command and query (CQRS designs) side databases/message buses a bit.
@@ -55,7 +57,7 @@ comm -1 -2 --nocheck-order --total test1.log test2.log
 Redis:
 
 ```bash
-kubectl port-forward svc/redis 6379:6379 
+kubectl port-forward svc/redis 6379:6379
 ```
 
 Consul:
