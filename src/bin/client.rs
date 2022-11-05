@@ -9,8 +9,6 @@ use tokio::{
     net::TcpStream,
 };
 
-mod rdeebee_common;
-
 const SERVER_PORT: u16 = 2048;
 
 #[derive(Debug, Deserialize)]
@@ -95,12 +93,12 @@ async fn create_request(
             let seq_str = reqwest::get("http://localhost:8080").await?.text().await?;
             println!("Sequence string: {}", &seq_str);
             serde_json::from_str(&seq_str)?
-        },
+        }
         Action::Read => SeqStruct { Sequence: 0 },
     };
 
     request.seq = seq.Sequence;
-    
+
     if let Some(payload) = payload {
         let payload = bincode::serialize(&payload)?;
         request.payload = payload;

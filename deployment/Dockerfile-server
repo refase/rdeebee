@@ -1,0 +1,13 @@
+FROM rust:latest as builder
+
+WORKDIR /rdb-server
+COPY . .
+
+RUN cargo build --release
+
+FROM scratch
+COPY --from=builder /rdb-server/target/release/rdb-server /server/
+
+WORKDIR /server
+EXPOSE 2048
+CMD ["./rdb-server"]

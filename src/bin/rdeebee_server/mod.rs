@@ -3,14 +3,7 @@ use std::{borrow::BorrowMut, sync::Arc};
 use anyhow::anyhow;
 use log::error;
 use parking_lot::RwLock;
-use rdeebee::{wire_format::operation, RDeeBee};
-
-#[derive(Debug, Clone)]
-pub(crate) enum Role {
-    Leader,
-    Candidate,
-    Node, // default
-}
+use rdeebee::{wire_format::operation, RDeeBee, Role};
 
 #[derive(Clone)]
 pub(crate) struct RDeeBeeServer {

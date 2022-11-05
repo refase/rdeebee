@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use rand::Rng;
 use rs_consul::{
@@ -6,25 +6,27 @@ use rs_consul::{
     RegisterEntityService, ServiceNode,
 };
 
-pub(crate) struct ConsulRegister {
+pub struct ConsulRegister {
     consul_client: Consul,
     pod_ip: String,
 }
 
 impl ConsulRegister {
-    pub(crate) fn new(consul_svc: &str) -> Self {
+    pub fn new(consul_svc: &str, pod_ip: String) -> Self {
+        println!("new");
         let config = Config {
             address: consul_svc.to_owned(),
             token: None,
         };
         let client = Consul::new(config);
-        let pod_ip = env::var("POD_IP").expect("Pod IP not defined");
+
         Self {
             consul_client: client,
             pod_ip,
         }
     }
-    pub(crate) async fn register(&self, svc: &str) -> Result<(), ConsulError> {
+    pub async fn register(&self, svc: &str) -> Result<(), ConsulError> {
+        println!("register");
         let service = RegisterEntityService {
             ID: None,
             Service: svc.to_owned(),
@@ -52,7 +54,8 @@ impl ConsulRegister {
         self.consul_client.register_entity(&payload).await
     }
 
-    pub(crate) async fn get_node(&self) -> Result<ServiceNode, ConsulError> {
+    pub async fn get_node(&self) -> Result<ServiceNode, ConsulError> {
+        println!("get node");
         let request = GetServiceNodesRequest {
             service: "Database",
             near: None,
@@ -71,7 +74,8 @@ impl ConsulRegister {
         Ok(nodes[index].clone())
     }
 
-    pub(crate) async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ConsulError> {
+    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ConsulError> {
+        println!("get leaders");
         let request = GetServiceNodesRequest {
             service: "Database",
             near: None,

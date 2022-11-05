@@ -11,11 +11,13 @@ use uuid::Uuid;
 mod errors;
 mod event;
 mod protos;
+mod rdeebee_common;
 mod recovery;
 mod storage;
 
 pub(crate) use event::*;
 pub use protos::*;
+pub use rdeebee_common::*;
 
 pub struct RDeeBee {
     compaction_size: usize,

@@ -6,12 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "server"
+name = "rdb-server"
 path = "src/bin/server.rs"
 
 [[bin]]
-name = "client"
+name = "rdb-client"
 path = "src/bin/client.rs"
+
+[[bin]]
+name = "rdb-gateway"
+path = "src/bin/gateway.rs"
 
 [dependencies]
 uuid = { version = "1.2", features = ["v4", "serde"] }
@@ -33,8 +37,13 @@ protobuf = "3.2"
 clap = { version = "4.0.18", features = ["derive"] }
 
 reqwest = "0.11.12"
+futures = "0.3.25"
 
 rs-consul = "0.2.3"
+
+actix-web = "4.2.1"
+
+signal-hook = "0.3.14"
 
 [build-dependencies]
 protobuf-codegen = "3.2"
