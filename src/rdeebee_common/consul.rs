@@ -2,30 +2,57 @@ use std::collections::HashMap;
 
 use rand::Rng;
 use rs_consul::{
-    Config, Consul, ConsulError, GetServiceNodesRequest, RegisterEntityPayload,
-    RegisterEntityService, ServiceNode,
+    Config, Consul, GetServiceNodesRequest, RegisterEntityPayload, RegisterEntityService,
+    ServiceNode,
 };
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ConsulErrors {
+    #[error(transparent)]
+    RequestError(#[from] reqwest::Error),
+    #[error(transparent)]
+    ConsulError(#[from] rs_consul::ConsulError),
+}
 
 pub struct ConsulRegister {
     consul_client: Consul,
+    config: Config,
     pod_ip: String,
 }
 
 impl ConsulRegister {
     pub fn new(consul_svc: &str, pod_ip: String) -> Self {
-        println!("new");
         let config = Config {
             address: consul_svc.to_owned(),
             token: None,
         };
-        let client = Consul::new(config);
+        let client = Consul::new(config.clone());
 
         Self {
             consul_client: client,
+            config,
             pod_ip,
         }
     }
-    pub async fn register(&self, svc: &str) -> Result<(), ConsulError> {
+
+    fn build_url(&self, request: GetServiceNodesRequest<'_>) -> String {
+        let mut url = String::new();
+        url.push_str(&format!(
+            "http://{}/v1/health/service/{}",
+            self.config.address, request.service
+        ));
+        url.push_str(&format!("?passing={}", request.passing));
+        if let Some(near) = request.near {
+            url.push_str(&format!("&near={}", near));
+        }
+        if let Some(filter) = request.filter {
+            url.push_str(&format!("&filter={}", filter));
+        }
+        url
+    }
+
+    pub async fn register(&self, svc: &str) -> Result<(), rs_consul::ConsulError> {
         println!("register");
         let service = RegisterEntityService {
             ID: None,
@@ -54,8 +81,7 @@ impl ConsulRegister {
         self.consul_client.register_entity(&payload).await
     }
 
-    pub async fn get_node(&self) -> Result<ServiceNode, ConsulError> {
-        println!("get node");
+    pub async fn get_node(&self) -> Result<ServiceNode, ConsulErrors> {
         let request = GetServiceNodesRequest {
             service: "Database",
             near: None,
@@ -63,19 +89,18 @@ impl ConsulRegister {
             filter: None,
         };
 
-        let nodes = self
-            .consul_client
-            .get_service_nodes(request, None)
-            .await?
-            .response;
+        let response = reqwest::get(self.build_url(request)).await?;
+        let bytes = response.bytes().await?;
+        let nodes = serde_json::from_slice::<Vec<ServiceNode>>(&bytes)
+            .map_err(rs_consul::ConsulError::ResponseDeserializationFailed)?;
+
         let mut rng = rand::thread_rng();
         let rnd: usize = rng.gen();
         let index = rnd % nodes.len();
         Ok(nodes[index].clone())
     }
 
-    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ConsulError> {
-        println!("get leaders");
+    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ConsulErrors> {
         let request = GetServiceNodesRequest {
             service: "Database",
             near: None,
@@ -83,10 +108,10 @@ impl ConsulRegister {
             filter: Some("Node.Meta.leader==false"),
         };
 
-        Ok(self
-            .consul_client
-            .get_service_nodes(request, None)
-            .await?
-            .response)
+        let response = reqwest::get(self.build_url(request)).await?;
+        let bytes = response.bytes().await?;
+
+        Ok(serde_json::from_slice::<Vec<ServiceNode>>(&bytes)
+            .map_err(rs_consul::ConsulError::ResponseDeserializationFailed)?)
     }
 }

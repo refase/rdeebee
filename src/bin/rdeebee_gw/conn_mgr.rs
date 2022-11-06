@@ -3,9 +3,9 @@ use std::{io, sync::Arc};
 use protobuf::{CodedInputStream, Message};
 use rdeebee::{
     wire_format::operation::{Request, Response, Status},
-    ConsulRegister,
+    ConsulErrors, ConsulRegister,
 };
-use rs_consul::{ConsulError, ServiceNode};
+use rs_consul::ServiceNode;
 use tokio::{
     io::AsyncWriteExt,
     net::{tcp::OwnedReadHalf, TcpStream},
@@ -30,11 +30,11 @@ impl ConnMgr {
         }
     }
 
-    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ConsulError> {
+    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ConsulErrors> {
         self.consul.get_leaders().await
     }
 
-    pub async fn get_node(&self) -> Result<ServiceNode, ConsulError> {
+    pub async fn get_node(&self) -> Result<ServiceNode, ConsulErrors> {
         self.consul.get_node().await
     }
 
@@ -61,35 +61,31 @@ impl ConnMgr {
     ) -> anyhow::Result<Response> {
         let node = match node {
             Some(node) => node,
-            None => self.get_node().await.unwrap(),
+            None => self.get_node().await?,
         };
-        let addr = format!("{}:{}", node.node.address, node.service.port);
-        let stream = TcpStream::connect(addr).await.unwrap();
-        let request_bytes = request.write_length_delimited_to_bytes().unwrap();
+        // let addr = format!("{}:{}", node.node.address, node.service.port);
+        let addr = format!("localhost:2048");
+        let stream = TcpStream::connect(addr).await?;
+        let request_bytes = request.write_length_delimited_to_bytes()?;
 
         let (stream_rx, mut stream_tx) = stream.into_split();
-        let result = stream_tx.write(&request_bytes).await;
-        println!("wrote to stream; success={:?}", result.is_ok());
-        println!("awaiting reply...");
+        stream_tx.write(&request_bytes).await?;
+        // println!("wrote to stream; success={:?}", result.is_ok());
+        // println!("awaiting reply...");
         let response = self.get_response(stream_rx).await?;
-        println!("Response:");
-        println!("\tResponse Key: {:#?}", response.key);
-        println!(
-            "\tResponse Operation: {:#?}",
-            response.op.enum_value().unwrap()
-        );
-        println!("\tResponse Status: {:#?}", response.status);
-        if !response.payload.is_empty() {
-            let payload: String = bincode::deserialize(&response.payload).unwrap();
-            println!("\tPayload: {}", payload);
-        }
+        // println!("Response:");
+        // println!("\tResponse Key: {:#?}", response.key);
+        // println!("\tResponse Operation: {:#?}", response.op.enum_value());
+        // println!("\tResponse Status: {:#?}", response.status);
+        // if !response.payload.is_empty() {
+        //     let payload: String = bincode::deserialize(&response.payload)?;
+        //     println!("\tPayload: {}", payload);
+        // }
         Ok(response)
     }
 
     async fn get_response(&self, stream: OwnedReadHalf) -> anyhow::Result<Response> {
         let mut response = Response::new();
-
-        println!("Reading response");
         loop {
             stream.readable().await?;
             let mut reply = Vec::with_capacity(4096);

@@ -1,6 +1,9 @@
 use std::io;
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{
+    web::{self, Data},
+    App, HttpServer,
+};
 use rdeebee_gw::{connection_handler, RDeeBeeClientPool};
 
 mod rdeebee_gw;
@@ -13,7 +16,10 @@ const GWPORT: u16 = 4096;
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
-    let client = RDeeBeeClientPool::new();
+    std::env::set_var("RUST_LOG", "debug");
+    std::env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
+    let client = Data::new(RDeeBeeClientPool::new());
 
     println!("creating server");
     HttpServer::new(move || {

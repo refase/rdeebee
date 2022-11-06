@@ -2,7 +2,7 @@ use actix_web::{error, web, Error, HttpRequest, HttpResponse};
 use futures::StreamExt;
 use protobuf::EnumOrUnknown;
 use rdeebee::wire_format::operation::{Operation, Request};
-use reqwest::header::{self};
+use reqwest::header;
 
 use serde::{Deserialize, Serialize};
 
@@ -45,14 +45,11 @@ pub(crate) struct DbObj {
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
 pub(crate) async fn connection_handler(
-    request: HttpRequest,
+    _req: HttpRequest,
     client: web::Data<RDeeBeeClientPool>,
     info: web::Query<Info>,
     mut payload: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    let query = request.query_string().to_string();
-    println!("Query:{}", query);
-
     match info.action {
         Action::Delete | Action::Write => {
             let mut request = Request::new();

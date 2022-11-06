@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum CustomHttpErrors {
+pub enum GatewayErrors {
     #[error("Invalid length received")]
     InvalidLength,
     #[error("Could not fetch body: {0}")]

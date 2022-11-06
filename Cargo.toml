@@ -43,7 +43,7 @@ rs-consul = "0.2.3"
 
 actix-web = "4.2.1"
 
-signal-hook = "0.3.14"
+env_logger = "0.9.1"
 
 [build-dependencies]
 protobuf-codegen = "3.2"

@@ -28,7 +28,6 @@ const QUEUE_CAPACITY: usize = 500;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("{}", concat!(env!("OUT_DIR"), "/protos"));
     let addr = format!("127.0.0.1:{}", PORT);
 
     let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()) {
@@ -73,10 +72,10 @@ async fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind(&addr).await?;
     println!("Server started on: {}", &listener.local_addr().unwrap());
 
-    let rdb_client = rdb_srv.clone();
+    let rdb_srv_clone = rdb_srv.clone();
     let main_thrd = main_task(
         listener,
-        rdb_client,
+        rdb_srv_clone,
         event_sender,
         compaction_sender,
         event_queue,
