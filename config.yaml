@@ -1,0 +1,7 @@
+dbname: "RDeeBee"
+groups: 10
+group_size: 3
+reads: 3
+writes: 2
+id_key: "id_key"
+failover_id_key_prefix: "failover_id"

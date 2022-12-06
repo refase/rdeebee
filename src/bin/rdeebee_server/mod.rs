@@ -1,21 +1,13 @@
 use std::{borrow::BorrowMut, sync::Arc};
 
 use anyhow::anyhow;
-use log::error;
 use parking_lot::RwLock;
 use rdeebee::{wire_format::operation, RDeeBee};
-
-#[derive(Debug, Clone)]
-pub(crate) enum Role {
-    Leader,
-    Candidate,
-    Node, // default
-}
+use tracing::error;
 
 #[derive(Clone)]
 pub(crate) struct RDeeBeeServer {
     rdeebee: Arc<RwLock<RDeeBee>>,
-    role: Role,
 }
 
 impl RDeeBeeServer {
@@ -23,7 +15,6 @@ impl RDeeBeeServer {
         let rdeebee = RDeeBee::new(compaction_size, dir)?;
         Ok(Self {
             rdeebee: Arc::new(RwLock::new(rdeebee)),
-            role: Role::Node, // default
         })
     }
 

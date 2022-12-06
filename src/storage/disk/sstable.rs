@@ -6,13 +6,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::{
-    errors::StorageEngineError,
-    event::{Action, Event},
-    storage::MemTable,
-};
+use crate::{storage::MemTable, Action, Event, StorageEngineError};
 
 pub(crate) struct SSTableIterator {
     reader: BufReader<File>,
@@ -39,13 +36,13 @@ impl Iterator for SSTableIterator {
                 match bincode::deserialize::<Event>(&data_bytes) {
                     Ok(event) => Some(event),
                     Err(e) => {
-                        log::error!("Error getting next event: {}", e);
+                        error!("Error getting next event: {}", e);
                         None
                     }
                 }
             }
             Err(e) => {
-                log::error!("Error getting next event: {}", e);
+                error!("Error getting next event: {}", e);
                 None
             }
         }
@@ -152,7 +149,7 @@ impl SSTable {
 
     /// Given an existing file, return an SSTable
     pub(crate) fn from_file(filepath: PathBuf) -> io::Result<Self> {
-        log::info!("Opening new segment: {}", &filepath.display());
+        info!("Opening new segment: {}", &filepath.display());
         Ok(Self {
             memtable: None,
             filepath,
@@ -291,7 +288,6 @@ mod test {
         event::{Action, Event},
         mem::MemTable,
     };
-    use rand::{distributions::Alphanumeric, Rng};
     use uuid::Uuid;
 
     fn create_events(n: usize) -> Vec<Event> {

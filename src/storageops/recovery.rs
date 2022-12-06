@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use crate::{
-    errors::StorageEngineError,
+    storageops::errors::StorageEngineError,
     storage::{MemTable, SSTable, Wal},
 };
 

@@ -1,20 +1,24 @@
 use std::{
     borrow::{Borrow, BorrowMut},
     collections::VecDeque,
-    str,
+    env, str,
     sync::Arc,
 };
 
 use anyhow::anyhow;
-use log::{error, info};
 use parking_lot::RwLock;
 use protobuf::{CodedInputStream, EnumOrUnknown, Message};
-use rdeebee::wire_format::operation::{Operation, Request, Response, Status};
+use rdeebee::{
+    wire_format::operation::{Operation, Request, Response, Status},
+    Node,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
+use tracing::{error, info, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use crate::rdeebee_server::RDeeBeeServer;
 
@@ -28,6 +32,31 @@ const QUEUE_CAPACITY: usize = 500;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let trace_level = match env::var("TRACE_LEVEL")
+        .expect("Trace level undefined")
+        .as_str()
+    {
+        "TRACE" | "Trace" | "trace" => Level::TRACE,
+        "INFO" | "Info" | "info" => Level::INFO,
+        "DEBUG" | "Debug" | "debug" => Level::DEBUG,
+        "WARN" | "Warn" | "warn" => Level::WARN,
+        "ERROR" | "Error" | "error" => Level::ERROR,
+        _ => Level::TRACE,
+    };
+
+    // Set up tracing.
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(trace_level)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    // Start the cluster node
+    tokio::task::spawn(async move {
+        let mut node = Node::new().await;
+        match node.run_cluster_node().await {
+            Ok(_) => info!("Cluster node exited"),
+            Err(e) => error!("Cluster node failed: {e}"),
+        }
+    });
     let addr = format!("127.0.0.1:{}", PORT);
 
     let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()) {

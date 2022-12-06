@@ -5,12 +5,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use tracing::error;
 use uuid::Uuid;
 
-use crate::{
-    errors::StorageEngineError,
-    event::{Action, Event},
-};
+use crate::{Action, Event, StorageEngineError};
 
 /// This is the Write-Ahead Log
 /// This part, again, follows this [blog](https://adambcomer.com/blog/simple-database/Wal/)
@@ -41,13 +39,13 @@ impl Iterator for WalIterator {
                 match bincode::deserialize::<Event>(&data_bytes) {
                     Ok(event) => Some(event),
                     Err(e) => {
-                        log::error!("Error getting next event: {}", e);
+                        error!("Error getting next event: {}", e);
                         None
                     }
                 }
             }
             Err(e) => {
-                log::error!("Error getting next event: {}", e);
+                error!("Error getting next event: {}", e);
                 None
             }
         }
