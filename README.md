@@ -12,13 +12,11 @@ The overall goal is to learn about design and design tradeoffs by making them.
 
 ## Discover nodes of the database
 
-We use [`consul`](https://developer.hashicorp.com/consul) for this. Consul can be set up using this [guide](https://developer.hashicorp.com/consul/docs/k8s/installation/install#custom-installation). The configuration reference is [here](https://developer.hashicorp.com/consul/docs/k8s/helm#helm-chart-reference).
-
-The main issue I faced is a permission [issue](https://github.com/hashicorp/consul/issues/10096#issuecomment-857113725).
+TODO: We are using etcd. Fill up.
 
 ## Sequencing the Writes
 
-We use Redis `incr` function to atomically generate sequence numbers and expose that through a web server.
+TODO: We are using etcd. Fill up.
 
 ### Testing concurrent access
 
