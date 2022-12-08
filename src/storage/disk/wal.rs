@@ -78,7 +78,7 @@ impl Wal {
 
     /// Create a Wal from existing file.
     pub(crate) fn from_path(path: &Path) -> io::Result<Self> {
-        let file = OpenOptions::new().create(true).append(true).open(&path)?;
+        let file = OpenOptions::new().create(true).append(true).open(path)?;
         let file = BufWriter::new(file);
 
         Ok(Wal {

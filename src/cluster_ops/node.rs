@@ -47,7 +47,7 @@ impl Node {
             .parse::<u64>()
             .expect("Invalid refresh interval");
 
-        if !(lease_ttl > refresh_interval as i64) {
+        if lease_ttl <= refresh_interval as i64 {
             error!(
                 "Lease refresh interval({}) larger than lease ttl({})",
                 refresh_interval, lease_ttl
@@ -107,11 +107,9 @@ impl Node {
                 reg.add_endpoint(endpoint)?;
                 Ok(())
             }
-            None => {
-                return Err(ClusterNodeError::InvalidState(
-                    "Leader doesn't have registry initialized".to_owned(),
-                ))
-            }
+            None => Err(ClusterNodeError::InvalidState(
+                "Leader doesn't have registry initialized".to_owned(),
+            )),
         }
     }
 
@@ -128,11 +126,9 @@ impl Node {
                 reg.update_registry(endpoints)?;
                 Ok(())
             }
-            None => {
-                return Err(ClusterNodeError::InvalidState(
-                    "Leader doesn't have registry initialized".to_owned(),
-                ))
-            }
+            None => Err(ClusterNodeError::InvalidState(
+                "Leader doesn't have registry initialized".to_owned(),
+            )),
         }
     }
 
@@ -180,10 +176,10 @@ impl Node {
 
         debug!("Locked");
         let kvs = resp.kvs();
-        if kvs.len() > 0 {
-            for g in 0..kvs.len() {
-                let key = kvs[g].key_str().expect("Failed to get key").to_owned();
-                let group = kvs[g]
+        if !kvs.is_empty() {
+            for kv in kvs {
+                let key = kv.key_str().expect("Failed to get key").to_owned();
+                let group = kv
                     .value_str()
                     .expect("Failed to get node ID")
                     .parse::<usize>()
@@ -244,14 +240,6 @@ impl Node {
             .expect("Failed to get node ID");
         debug!("ID key: {}", id_key.clone());
 
-        // TODO: The key get is not working when setup from outside. Why???
-        // let resp = self
-        //     .client
-        //     .put(id_key.clone(), "1", None)
-        //     .await
-        //     .expect("Failed to get node ID");
-        // info!("New ID put resp: {resp:#?}");
-
         let resp = self
             .client
             .get(id_key, None)
@@ -262,7 +250,7 @@ impl Node {
         debug!("New id response");
         debug!("New ID kv: {kv:#?}");
 
-        if kv.len() > 0 {
+        if !kv.is_empty() {
             let val = kv[0]
                 .value_str()
                 .expect("Failed to get the latest ID")
@@ -322,7 +310,7 @@ impl Node {
                     info!("Key: {}, Service Node: {ep}", group_key);
                     endpoints.push(ep.to_owned());
                 }
-                return Ok(endpoints);
+                Ok(endpoints)
             }
         }
     }
@@ -413,7 +401,7 @@ impl Node {
                 }
             }
         }
-        if group_missing_node.len() > 0 {
+        if !group_missing_node.is_empty() {
             for (key, grp_str) in group_missing_node {
                 let put_resp = client.put(key, grp_str, None).await?;
                 info!("{put_resp:#?}");
@@ -465,22 +453,21 @@ impl Node {
     }
 
     /// Get the leaders in the system.
-    async fn get_leaders(&self) -> Result<(), ClusterNodeError> {
+    async fn _get_leaders(&self) -> Result<(), ClusterNodeError> {
         let mut client = self.client.clone();
         let getoptions = GetOptions::new().with_prefix();
         let leader_keys = self.leader_keys()?;
         let mut leaders = Vec::new();
 
         for i in 0..2 {
-            let leader_key;
-            if i == 0 {
-                leader_key = leader_keys.0.clone();
+            let leader_key = if i == 0 {
+                leader_keys.0.clone()
             } else {
-                leader_key = leader_keys.1.clone();
-            }
+                leader_keys.1.clone()
+            };
             let resp = client.get(leader_key, Some(getoptions.clone())).await?;
             let kvs = resp.kvs();
-            if kvs.len() > 0 {
+            if !kvs.is_empty() {
                 leaders.push(kvs[0].value_str()?.to_owned());
             }
         }
@@ -504,12 +491,11 @@ impl Node {
 
         let svc_node = serde_json::to_string(&self.svc_node)?;
 
-        let leader_key;
-        if election_keys.0 == election_key.clone() {
-            leader_key = leader_keys.0.clone();
+        let leader_key = if election_keys.0 == election_key.clone() {
+            leader_keys.0.clone()
         } else {
-            leader_key = leader_keys.1.clone();
-        }
+            leader_keys.1.clone()
+        };
 
         let put_resp = self.client.put(leader_key.clone(), svc_node, None).await?;
         info!("Put response: {:#?}", put_resp);
@@ -526,19 +512,18 @@ impl Node {
         let mut client = self.client.clone();
 
         for i in 0..2 {
-            let election_key;
-            if i == 0 {
-                election_key = election_keys.0.clone();
+            let election_key = if i == 0 {
+                election_keys.0.clone()
             } else {
-                election_key = election_keys.1.clone();
-            }
+                election_keys.1.clone()
+            };
             // Does the key already exist?
             let resp = client
                 .get(election_key.clone(), Some(getoptions.clone()))
                 .await
                 .expect("Failed to query queue");
             let kvs = resp.kvs();
-            if kvs.len() == 0 {
+            if kvs.is_empty() {
                 return Ok(Some(election_key));
             }
         }
@@ -575,8 +560,6 @@ impl Node {
                             .expect("failed to get the key")
                             .contains(&leader_keys.0.clone())
                         {
-                            return Ok(Some(election_keys.0.clone()));
-                        } else {
                             return Ok(Some(election_keys.0.clone()));
                         }
                     }

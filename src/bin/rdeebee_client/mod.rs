@@ -75,7 +75,7 @@ impl SequenceSvc {
 
         let kv = resp.kvs();
 
-        if kv.len() == 0 {
+        if kv.is_empty() {
             self.client
                 .put(self.counter_key.clone(), "1", None)
                 .await

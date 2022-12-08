@@ -20,9 +20,7 @@ impl RDeeBeeServer {
 
     pub(crate) fn recover(&self) -> anyhow::Result<()> {
         match self.rdeebee.as_ref().borrow_mut().try_write() {
-            Some(mut guard) => Ok({
-                guard.recover()?;
-            }),
+            Some(mut guard) => Ok(guard.recover()?),
             None => Err(anyhow!("failed to recover")),
         }
     }
@@ -38,10 +36,10 @@ impl RDeeBeeServer {
     }
 
     pub(crate) fn get_memtable_size(&self) -> Option<usize> {
-        match self.rdeebee.as_ref().try_read() {
-            Some(guard) => Some(guard.get_memtable_size()),
-            None => None,
-        }
+        self.rdeebee
+            .as_ref()
+            .try_read()
+            .map(|guard| guard.get_memtable_size())
     }
 
     pub(crate) fn compact_sstables(&self) -> anyhow::Result<()> {
@@ -55,10 +53,10 @@ impl RDeeBeeServer {
     }
 
     pub(crate) fn get_event(&self, key: &str) -> Option<operation::Response> {
-        match self.rdeebee.as_ref().try_read() {
-            Some(guard) => Some(guard.get_event_by_key(key)),
-            None => None,
-        }
+        self.rdeebee
+            .as_ref()
+            .try_read()
+            .map(|guard| guard.get_event_by_key(key))
     }
 
     pub(crate) fn add_event(&self, request: operation::Request) -> anyhow::Result<()> {

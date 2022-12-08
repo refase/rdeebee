@@ -2,14 +2,14 @@ use super::{error::ClusterNodeError, ServiceNode};
 
 /// A registry of the nodes that belong to this group.
 pub(crate) struct Registry {
-    group_id: usize,
+    _group_id: usize,
     registry: Vec<ServiceNode>,
 }
 
 impl Registry {
-    pub(crate) fn new(group_id: usize) -> Self {
+    pub(crate) fn _new(_group_id: usize) -> Self {
         Self {
-            group_id,
+            _group_id,
             registry: vec![],
         }
     }
@@ -28,7 +28,7 @@ impl Registry {
     ) -> Result<(), ClusterNodeError> {
         let mut new_registry = vec![];
         for ep in &endpoints {
-            let endpoint = serde_json::from_str(&ep)?;
+            let endpoint = serde_json::from_str(ep)?;
             new_registry.push(endpoint);
         }
         self.registry = new_registry;

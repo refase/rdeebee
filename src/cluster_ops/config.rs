@@ -18,7 +18,7 @@ struct PreConfig {
     /// However, every leader also has a backup leader.
     reads: usize,
     /// Number of nodes any write has to be written to before the write can be acknowledged as committed.
-    writes: usize,
+    _writes: usize,
     /// If the system or a new group is starting up then the nodes need new IDs.
     /// This string to query in order to get a system's ID.
     id_key: String,
@@ -144,8 +144,8 @@ impl Config {
         self.preconf.reads
     }
 
-    pub(crate) fn writes(&self) -> usize {
-        self.preconf.writes
+    pub(crate) fn _writes(&self) -> usize {
+        self.preconf._writes
     }
 
     pub(crate) fn group_ids(&self, leader: String) -> Option<Vec<usize>> {

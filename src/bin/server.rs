@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
         info!("Starting cluster thread");
         let rt = tokio::runtime::Runtime::new().expect("Failed to start server runtime");
         rt.block_on(async move {
-            let mut node = Node::new().await;
+            let node = Node::new().await;
             info!("Starting cluster operations");
             match node.run_cluster_node().await {
                 Ok(_) => info!("Cluster node exited"),
@@ -251,7 +251,7 @@ async fn handle_client(
 
     // Ensure we coded input stream goes out of scope before the next await is hit.
     {
-        let mut input_stream = CodedInputStream::from_bytes(&mut raw);
+        let mut input_stream = CodedInputStream::from_bytes(&raw);
         request = match input_stream.read_message() {
             Ok(request) => request,
             Err(e) => {
@@ -264,7 +264,7 @@ async fn handle_client(
     // build the response here
     let mut response = Response::new();
     response.key = request.key.clone();
-    response.op = request.op.clone();
+    response.op = request.op;
 
     match request.op.enum_value() {
         Ok(op) => match op {

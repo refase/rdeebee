@@ -80,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Error reading from server");
     if n != 0 {
-        let mut input_stream = CodedInputStream::from_bytes(&mut reply);
+        let mut input_stream = CodedInputStream::from_bytes(&reply);
         let response: Response = input_stream.read_message().expect("failed to read back");
         println!("Response:");
         println!("\tResponse Key: {:#?}", response.key);
