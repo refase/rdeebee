@@ -50,13 +50,19 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     // Start the cluster node
-    tokio::task::spawn(async move {
-        let mut node = Node::new().await;
-        match node.run_cluster_node().await {
-            Ok(_) => info!("Cluster node exited"),
-            Err(e) => error!("Cluster node failed: {e}"),
-        }
+    std::thread::spawn(|| {
+        info!("Starting cluster thread");
+        let rt = tokio::runtime::Runtime::new().expect("Failed to start server runtime");
+        rt.block_on(async move {
+            let mut node = Node::new().await;
+            info!("Starting cluster operations");
+            match node.run_cluster_node().await {
+                Ok(_) => info!("Cluster node exited"),
+                Err(e) => error!("Cluster node failed: {e}"),
+            }
+        });
     });
+
     let addr = format!("127.0.0.1:{}", PORT);
 
     let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()) {
@@ -99,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
     let db_add_handler = add_events_to_db(rdb_get, event_queue_get, event_receiver);
 
     let listener = TcpListener::bind(&addr).await?;
-    println!("Server started on: {}", &listener.local_addr().unwrap());
+    info!("Server started on: {}", &listener.local_addr().unwrap());
 
     let rdb_srv_clone = rdb_srv.clone();
     let main_thrd = main_task(

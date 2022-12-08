@@ -3,7 +3,7 @@ use std::{env, net::Ipv4Addr, str, str::FromStr, sync::Arc, time::Duration};
 use etcd_client::{Client, EventType, GetOptions, LockOptions, PutOptions, WatchOptions};
 use parking_lot::RwLock;
 use tokio::{select, time::interval};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{group_add_lock, group_membership_key_gen, id_key_lock};
 
@@ -171,11 +171,14 @@ impl Node {
         let (id_key, failover_key) = self.config.id_keys();
         // First check if any of the leaders are reporting failed group memebers.
         let getoptions = GetOptions::new().with_prefix();
+        debug!("Lock Options");
         let resp = self
             .client
             .get(failover_key, Some(getoptions))
             .await
             .expect("Failed to get node ID");
+
+        debug!("Locked");
         let kvs = resp.kvs();
         if kvs.len() > 0 {
             for g in 0..kvs.len() {
@@ -191,6 +194,7 @@ impl Node {
                 };
             }
         }
+        debug!("Getting new ID");
 
         // At this point we have not been reassigned any old ID from a failed node.
         // So we will ask for a new ID.
@@ -231,18 +235,32 @@ impl Node {
     // Get a new ID from the etcd cluster.
     async fn new_id(&mut self, id_key: String) -> Result<usize, ClusterNodeError> {
         // The node expects get the ID in 10 seconds.
-        let lock_options = LockOptions::new().with_lease(10);
+        let lock_options = LockOptions::new().with_lease(self.lease);
+        debug!("New ID lock");
         let _resp = self
             .client
             .lock(id_key_lock!(), Some(lock_options))
             .await
             .expect("Failed to get node ID");
+        debug!("ID key: {}", id_key.clone());
+
+        // TODO: The key get is not working when setup from outside. Why???
+        // let resp = self
+        //     .client
+        //     .put(id_key.clone(), "1", None)
+        //     .await
+        //     .expect("Failed to get node ID");
+        // info!("New ID put resp: {resp:#?}");
+
         let resp = self
             .client
             .get(id_key, None)
             .await
             .expect("Failed to get node ID");
+        debug!("New ID get response: {resp:#?}");
         let kv = resp.kvs();
+        debug!("New id response");
+        debug!("New ID kv: {kv:#?}");
 
         if kv.len() > 0 {
             let val = kv[0]
@@ -252,6 +270,7 @@ impl Node {
                 .expect("Failed to parse ID");
             Ok(val as usize)
         } else {
+            error!("New ID kv=0 error");
             Err(ClusterNodeError::ServerCreationError(
                 "Failed to read node ID".to_owned(),
             ))
@@ -269,7 +288,7 @@ impl Node {
             .expect("failed to start keep alive channels");
         lease_keeper.keep_alive().await?;
         if let Some(msg) = lease_keepalive_stream.message().await? {
-            info!("lease {:?} keep alive, new ttl {:?}", msg.id(), msg.ttl());
+            debug!("lease {:?} keep alive, new ttl {:?}", msg.id(), msg.ttl());
         }
         Ok(())
     }
@@ -574,6 +593,7 @@ impl Node {
     pub async fn run_cluster_node(mut self) -> Result<(), ClusterNodeError> {
         // Register the node
         let node_id = self.node_id().await?;
+        info!("Node ID: {node_id}");
         let group_id = match self.config.group_id(node_id) {
             Some(group_id) => group_id,
             None => {
@@ -582,7 +602,9 @@ impl Node {
                 ))
             }
         };
+        info!("Group ID: {group_id}");
         self.register(group_id).await?;
+        info!("Registered");
 
         // Start operations.
         let mut interval = interval(Duration::from_secs(self.refresh_interval));
