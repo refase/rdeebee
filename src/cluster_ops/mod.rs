@@ -60,7 +60,7 @@ macro_rules! id_key_lock {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub(crate) struct ServiceNode {
+pub struct ServiceNode {
     node: String,
     address: Ipv4Addr,
 }

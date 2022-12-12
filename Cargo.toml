@@ -13,6 +13,10 @@ path = "src/bin/server.rs"
 name = "rdb-client"
 path = "src/bin/client.rs"
 
+[[bin]]
+name = "rdb-server2"
+path = "src/bin/server2.rs"
+
 [dependencies]
 tokio = { version = "1.21.2", features = ["full"] }
 futures-util = "0.3.25"

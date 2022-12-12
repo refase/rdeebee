@@ -78,8 +78,6 @@ impl Node {
 
         let config = Config::new();
 
-        // let node_id = Self::node_id(client.clone(), config.id_keys(), lease).await;
-
         Self {
             client,
             svc_node,
@@ -91,6 +89,10 @@ impl Node {
             nodetype: NodeType::Member,
             registry: Arc::new(RwLock::new(None)),
         }
+    }
+
+    pub fn is_leader(&self) -> bool {
+        self.nodetype == NodeType::Leader
     }
 
     /// Add a new service node to the group.
@@ -453,7 +455,7 @@ impl Node {
     }
 
     /// Get the leaders in the system.
-    async fn _get_leaders(&self) -> Result<(), ClusterNodeError> {
+    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ClusterNodeError> {
         let mut client = self.client.clone();
         let getoptions = GetOptions::new().with_prefix();
         let leader_keys = self.leader_keys()?;
@@ -468,10 +470,15 @@ impl Node {
             let resp = client.get(leader_key, Some(getoptions.clone())).await?;
             let kvs = resp.kvs();
             if !kvs.is_empty() {
-                leaders.push(kvs[0].value_str()?.to_owned());
+                let leader = kvs[0].value_str()?.to_owned();
+                let service_node: ServiceNode = serde_json::from_str(&leader)?;
+                leaders.push(service_node);
             }
         }
-        Ok(())
+        match leaders.is_empty() {
+            true => Err(ClusterNodeError::InvalidState("No Leader found".to_owned())),
+            false => Ok(leaders),
+        }
     }
 
     async fn campaign(&mut self, election_key: String) -> Result<(), ClusterNodeError> {
@@ -573,7 +580,7 @@ impl Node {
 
     // // pub fn run_cluster_node(&mut self) -> BoxFuture<Result<(), ClusterNodeError>> {
     // pub async fn run_cluster_node(&mut self) -> anyhow::Result<()> {
-    pub async fn run_cluster_node(mut self) -> Result<(), ClusterNodeError> {
+    pub async fn run_cluster_node(&mut self) -> Result<(), ClusterNodeError> {
         // Register the node
         let node_id = self.node_id().await?;
         info!("Node ID: {node_id}");

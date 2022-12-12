@@ -8,10 +8,7 @@ use std::{
 use anyhow::anyhow;
 use parking_lot::RwLock;
 use protobuf::{CodedInputStream, EnumOrUnknown, Message};
-use rdeebee::{
-    wire_format::operation::{Operation, Request, Response, Status},
-    Node,
-};
+use rdeebee::wire_format::operation::{Operation, Request, Response, Status};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -49,26 +46,29 @@ async fn main() -> anyhow::Result<()> {
         .with_max_level(trace_level)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    // Start the cluster node
-    std::thread::spawn(|| {
-        info!("Starting cluster thread");
-        let rt = tokio::runtime::Runtime::new().expect("Failed to start server runtime");
-        rt.block_on(async move {
-            let node = Node::new().await;
-            info!("Starting cluster operations");
-            match node.run_cluster_node().await {
-                Ok(_) => info!("Cluster node exited"),
-                Err(e) => error!("Cluster node failed: {e}"),
-            }
-        });
-    });
 
     let addr = format!("127.0.0.1:{}", PORT);
 
-    let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()) {
+    let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()).await {
         Ok(rdb_srv) => rdb_srv,
         Err(e) => return Err(e),
     };
+
+    // Start the cluster node
+    let node = rdb_srv.get_node();
+    std::thread::spawn(move || {
+        info!("Starting cluster thread");
+        let rt = tokio::runtime::Runtime::new().expect("Failed to start server runtime");
+        let mut node = node.as_ref().borrow_mut().write();
+        rt.block_on(async move {
+            node.run_cluster_node().await.unwrap();
+        })
+    });
+
+    match rdb_srv.is_leader() {
+        true => info!("Node is leader"),
+        false => info!("Node is non-leading member"),
+    }
 
     // Recover the system.
     // Assume the directory is empty or doesn't exist for a new system.
