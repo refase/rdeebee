@@ -1,12 +1,11 @@
 use std::{
     borrow::{Borrow, BorrowMut},
     collections::VecDeque,
-    str,
+    env, str,
     sync::Arc,
 };
 
 use anyhow::anyhow;
-use log::{error, info};
 use parking_lot::RwLock;
 use protobuf::{CodedInputStream, EnumOrUnknown, Message};
 use rdeebee::wire_format::operation::{Operation, Request, Response, Status};
@@ -15,6 +14,8 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
+use tracing::{error, info, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use crate::rdeebee_server::RDeeBeeServer;
 
@@ -28,12 +29,46 @@ const QUEUE_CAPACITY: usize = 500;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let trace_level = match env::var("TRACE_LEVEL")
+        .expect("Trace level undefined")
+        .as_str()
+    {
+        "TRACE" | "Trace" | "trace" => Level::TRACE,
+        "INFO" | "Info" | "info" => Level::INFO,
+        "DEBUG" | "Debug" | "debug" => Level::DEBUG,
+        "WARN" | "Warn" | "warn" => Level::WARN,
+        "ERROR" | "Error" | "error" => Level::ERROR,
+        _ => Level::TRACE,
+    };
+
+    // Set up tracing.
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(trace_level)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
     let addr = format!("127.0.0.1:{}", PORT);
 
-    let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()) {
+    let rdb_srv = match RDeeBeeServer::new(COMPACTION_SIZE, DEEBEE_FOLDER.to_string()).await {
         Ok(rdb_srv) => rdb_srv,
         Err(e) => return Err(e),
     };
+
+    // Start the cluster node
+    let node = rdb_srv.get_node();
+    std::thread::spawn(move || {
+        info!("Starting cluster thread");
+        let rt = tokio::runtime::Runtime::new().expect("Failed to start server runtime");
+        let mut node = node.as_ref().borrow_mut().write();
+        rt.block_on(async move {
+            node.run_cluster_node().await.unwrap();
+        })
+    });
+
+    match rdb_srv.is_leader() {
+        true => info!("Node is leader"),
+        false => info!("Node is non-leading member"),
+    }
 
     // Recover the system.
     // Assume the directory is empty or doesn't exist for a new system.
@@ -70,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
     let db_add_handler = add_events_to_db(rdb_get, event_queue_get, event_receiver);
 
     let listener = TcpListener::bind(&addr).await?;
-    println!("Server started on: {}", &listener.local_addr().unwrap());
+    info!("Server started on: {}", &listener.local_addr().unwrap());
 
     let rdb_srv_clone = rdb_srv.clone();
     let main_thrd = main_task(
@@ -216,7 +251,7 @@ async fn handle_client(
 
     // Ensure we coded input stream goes out of scope before the next await is hit.
     {
-        let mut input_stream = CodedInputStream::from_bytes(&mut raw);
+        let mut input_stream = CodedInputStream::from_bytes(&raw);
         request = match input_stream.read_message() {
             Ok(request) => request,
             Err(e) => {
@@ -229,7 +264,7 @@ async fn handle_client(
     // build the response here
     let mut response = Response::new();
     response.key = request.key.clone();
-    response.op = request.op.clone();
+    response.op = request.op;
 
     match request.op.enum_value() {
         Ok(op) => match op {

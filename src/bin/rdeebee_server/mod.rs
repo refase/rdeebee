@@ -1,37 +1,34 @@
-use std::{borrow::BorrowMut, sync::Arc};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    sync::Arc,
+};
 
 use anyhow::anyhow;
-use log::error;
 use parking_lot::RwLock;
-use rdeebee::{wire_format::operation, RDeeBee};
-
-#[derive(Debug, Clone)]
-pub(crate) enum Role {
-    Leader,
-    Candidate,
-    Node, // default
-}
+use rdeebee::{wire_format::operation, Node, RDeeBee, ServiceNode};
+use tracing::error;
 
 #[derive(Clone)]
 pub(crate) struct RDeeBeeServer {
     rdeebee: Arc<RwLock<RDeeBee>>,
-    role: Role,
+    cluster_node: Arc<RwLock<Node>>,
 }
 
 impl RDeeBeeServer {
-    pub(crate) fn new(compaction_size: usize, dir: String) -> anyhow::Result<Self> {
-        let rdeebee = RDeeBee::new(compaction_size, dir)?;
+    pub(crate) async fn new(compaction_size: usize, dir: String) -> anyhow::Result<Self> {
         Ok(Self {
-            rdeebee: Arc::new(RwLock::new(rdeebee)),
-            role: Role::Node, // default
+            rdeebee: Arc::new(RwLock::new(RDeeBee::new(compaction_size, dir)?)),
+            cluster_node: Arc::new(RwLock::new(Node::new().await)),
         })
+    }
+
+    pub(crate) fn get_node(&self) -> Arc<RwLock<Node>> {
+        self.cluster_node.clone()
     }
 
     pub(crate) fn recover(&self) -> anyhow::Result<()> {
         match self.rdeebee.as_ref().borrow_mut().try_write() {
-            Some(mut guard) => Ok({
-                guard.recover()?;
-            }),
+            Some(mut guard) => Ok(guard.recover()?),
             None => Err(anyhow!("failed to recover")),
         }
     }
@@ -47,10 +44,10 @@ impl RDeeBeeServer {
     }
 
     pub(crate) fn get_memtable_size(&self) -> Option<usize> {
-        match self.rdeebee.as_ref().try_read() {
-            Some(guard) => Some(guard.get_memtable_size()),
-            None => None,
-        }
+        self.rdeebee
+            .as_ref()
+            .try_read()
+            .map(|guard| guard.get_memtable_size())
     }
 
     pub(crate) fn compact_sstables(&self) -> anyhow::Result<()> {
@@ -64,10 +61,10 @@ impl RDeeBeeServer {
     }
 
     pub(crate) fn get_event(&self, key: &str) -> Option<operation::Response> {
-        match self.rdeebee.as_ref().try_read() {
-            Some(guard) => Some(guard.get_event_by_key(key)),
-            None => None,
-        }
+        self.rdeebee
+            .as_ref()
+            .try_read()
+            .map(|guard| guard.get_event_by_key(key))
     }
 
     pub(crate) fn add_event(&self, request: operation::Request) -> anyhow::Result<()> {
@@ -94,5 +91,27 @@ impl RDeeBeeServer {
                 Err(anyhow!("Failed to acquire lock in compact_memtable"))
             }
         }
+    }
+
+    pub(crate) async fn run_cluster(&self) -> anyhow::Result<()> {
+        let node = self.cluster_node.clone();
+        let mut node = node.as_ref().borrow_mut().write();
+        node.run_cluster_node().await?;
+        Ok(())
+    }
+
+    pub(crate) async fn get_leaders(&self) -> anyhow::Result<Vec<ServiceNode>> {
+        let leaders = self
+            .cluster_node
+            .as_ref()
+            .borrow()
+            .read()
+            .get_leaders()
+            .await?;
+        Ok(leaders)
+    }
+
+    pub(crate) fn is_leader(&self) -> bool {
+        self.cluster_node.as_ref().borrow().read().is_leader()
     }
 }
