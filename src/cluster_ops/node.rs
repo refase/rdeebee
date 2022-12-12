@@ -633,6 +633,7 @@ impl Node {
                 // Keep track of the peers.
                 NodeType::Leader => select! {
                     _ = interval.tick() => self.keepalive().await?,
+                    _ = self.watch_peers() => {},
                 },
             }
         }
