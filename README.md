@@ -10,13 +10,13 @@ The overall idea behind this project is to implement a distributed event databas
 
 The overall goal is to learn about design and design tradeoffs by making them.
 
-## Discover nodes of the database
+## Using etcd
 
-TODO: We are using etcd. Fill up.
+The etcd cluster is used for 3 purposes:
 
-## Sequencing the Writes
-
-TODO: We are using etcd. Fill up.
+    - Elect two leaders for each group.
+    - Register the node-to-group maps.
+    - Get a globally unique sequence number for each write.
 
 ### Testing concurrent access
 
