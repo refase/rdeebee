@@ -93,13 +93,6 @@ impl RDeeBeeServer {
         }
     }
 
-    pub(crate) async fn run_cluster(&self) -> anyhow::Result<()> {
-        let node = self.cluster_node.clone();
-        let mut node = node.as_ref().borrow_mut().write();
-        node.run_cluster_node().await?;
-        Ok(())
-    }
-
     pub(crate) async fn get_leaders(&self) -> anyhow::Result<Vec<ServiceNode>> {
         let leaders = self
             .cluster_node
