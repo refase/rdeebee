@@ -455,7 +455,7 @@ impl Node {
     }
 
     /// Get the leaders in the system.
-    pub async fn get_leaders(&self) -> Result<Vec<ServiceNode>, ClusterNodeError> {
+    pub fn get_leaders(&self) -> Result<Vec<ServiceNode>, ClusterNodeError> {
         let mut client = self.client.clone();
         let getoptions = GetOptions::new().with_prefix();
         let leader_keys = self.leader_keys()?;
@@ -467,7 +467,11 @@ impl Node {
             } else {
                 leader_keys.1.clone()
             };
-            let resp = client.get(leader_key, Some(getoptions.clone())).await?;
+            let handle = tokio::runtime::Handle::current();
+            let resp = handle.block_on(client.get(leader_key, Some(getoptions.clone())))?;
+
+            // let resp = client.get(leader_key, Some(getoptions.clone())).await?;
+
             let kvs = resp.kvs();
             if !kvs.is_empty() {
                 let leader = kvs[0].value_str()?.to_owned();

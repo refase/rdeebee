@@ -93,14 +93,9 @@ impl RDeeBeeServer {
         }
     }
 
-    pub(crate) async fn get_leaders(&self) -> anyhow::Result<Vec<ServiceNode>> {
-        let leaders = self
-            .cluster_node
-            .as_ref()
-            .borrow()
-            .read()
-            .get_leaders()
-            .await?;
+    pub(crate) fn get_leaders(&self) -> anyhow::Result<Vec<ServiceNode>> {
+        let leaders = self.cluster_node.as_ref().borrow().read().get_leaders()?;
+        // .await?;
         Ok(leaders)
     }
 
