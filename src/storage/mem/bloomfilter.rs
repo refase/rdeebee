@@ -1,7 +1,11 @@
-use std::num::Wrapping;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    num::Wrapping,
+};
 
 use bitvec::{bitvec, prelude::Msb0, vec::BitVec};
-use fasthash::{t1ha, xx};
+use fxhash::hash64;
 use uuid::Uuid;
 
 /// This is the custom bloomfilter implementation.
@@ -65,11 +69,19 @@ impl BFInner {
         true
     }
 
+    fn calculate_hash(id: Uuid) -> u64 {
+        let mut s = DefaultHasher::new();
+        id.hash(&mut s);
+        s.finish()
+    }
+
     fn hash_i(&self, id: Uuid, i: usize) -> usize {
-        let xx = Wrapping(xx::hash64(id));
-        let t1ha = Wrapping(t1ha::hash64(id));
-        let t1_mod = Wrapping((i * i) as u64) * t1ha;
-        (xx + t1_mod).0 as usize % self.size
+        let hash1 = Wrapping(hash64(&id));
+        let hash2 = Wrapping(Self::calculate_hash(id));
+        // let hash1 = Wrapping(xx::hash64(id));
+        // let hash2 = Wrapping(sea::hash64(id.as_bytes()));
+        let hash_mod = Wrapping((i * i) as u64) * hash2;
+        (hash1 + hash_mod).0 as usize % self.size
     }
 
     fn hash(&self, id: Uuid) -> Vec<usize> {
