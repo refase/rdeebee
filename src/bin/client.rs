@@ -3,7 +3,7 @@ use clap::{arg, command, Parser, Subcommand};
 use protobuf::{CodedInputStream, Message};
 
 use rdeebee::wire_format::operation::Response;
-use std::{env, str};
+use std::{env, net::Ipv4Addr, str};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -13,8 +13,6 @@ use tracing_subscriber::FmtSubscriber;
 
 mod rdeebee_client;
 use rdeebee_client::*;
-
-const SERVER_PORT: u16 = 2048;
 
 #[derive(Debug, Subcommand)]
 enum Action {
@@ -56,7 +54,16 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT)).await?;
+    let server_ip: Ipv4Addr = env::var("SERVER_IP")
+        .expect("Server IP undefined")
+        .parse()
+        .expect("Unable to parse IP");
+    let server_port = env::var("SERVER_PORT")
+        .expect("Server port undefined")
+        .parse::<u64>()
+        .expect("Invalid server port");
+
+    let mut stream = TcpStream::connect(format!("{server_ip}:{server_port}")).await?;
     println!("Created a new stream");
 
     let mut sequencer = SequenceSvc::new().await;
