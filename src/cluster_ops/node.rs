@@ -1,4 +1,4 @@
-use std::{env, net::Ipv4Addr, str, str::FromStr, sync::Arc, time::Duration};
+use std::{env, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use etcd_client::{Client, EventType, GetOptions, LockOptions, PutOptions, WatchOptions};
 use parking_lot::RwLock;
@@ -151,7 +151,8 @@ impl Node {
     }
 
     async fn register(&mut self, group_id: usize) -> Result<(), ClusterNodeError> {
-        let putoptions = PutOptions::new().with_lease(self.lease);
+        let lease = self.client.lease_grant(10, None).await?;
+        let putoptions = PutOptions::new().with_lease(lease.id());
         let svc_node = serde_json::to_string(&self.svc_node)?;
         let group_membership_key = group_membership_key_gen!(self.config.dbname(), group_id);
         let grp_key = format!("{}-{:#?}", group_membership_key, svc_node.clone());
@@ -246,9 +247,10 @@ impl Node {
     // Get a new ID from the etcd cluster.
     async fn new_id(&mut self, id_key: String) -> Result<usize, ClusterNodeError> {
         // The node expects get the ID in 10 seconds.
-        let lock_options = LockOptions::new().with_lease(self.lease);
+        let lease = self.client.lease_grant(10, None).await?;
+        let lock_options = LockOptions::new().with_lease(lease.id());
         debug!("New ID lock");
-        let _resp = self
+        let lock_resp = self
             .client
             .lock(id_key_lock!(), Some(lock_options))
             .await
@@ -257,7 +259,7 @@ impl Node {
 
         let resp = self
             .client
-            .get(id_key, None)
+            .get(id_key.clone(), None)
             .await
             .expect("Failed to get node ID");
         debug!("New ID get response: {resp:#?}");
@@ -265,18 +267,36 @@ impl Node {
         debug!("New id response");
         debug!("New ID kv: {kv:#?}");
 
+        let mut val = None;
+
         if !kv.is_empty() {
-            let val = kv[0]
+            let inner_val = kv[0]
                 .value_str()
                 .expect("Failed to get the latest ID")
                 .parse::<u64>()
                 .expect("Failed to parse ID");
-            Ok(val as usize)
+            // Increment the ID here.
+            let _resp = self
+                .client
+                .put(id_key, format!("{}", inner_val + 1), None)
+                .await?;
+            val = Some(inner_val);
         } else {
             error!("New ID kv=0 error");
-            Err(ClusterNodeError::ServerCreationError(
+        }
+
+        // Unlock id key.
+        match self.client.unlock(lock_resp.key()).await {
+            Ok(resp) => debug!("New id key unlocked: {resp:#?}"),
+            Err(e) => error!("New id unlock failed: {e}"),
+        }
+
+        // Send value or error.
+        match val {
+            Some(val) => Ok(val as usize),
+            None => Err(ClusterNodeError::ServerCreationError(
                 "Failed to read node ID".to_owned(),
-            ))
+            )),
         }
     }
 
@@ -502,16 +522,17 @@ impl Node {
         let leader_keys = self.leader_keys()?;
         let election_keys = self.election_keys()?;
         // Lock with lease.
-        let lock_options = LockOptions::new().with_lease(self.lease);
-        let resp = self
+        let lease = self.client.lease_grant(10, None).await?;
+        let lock_options = LockOptions::new().with_lease(lease.id());
+        let lock_resp = self
             .client
             .lock(election_key.clone(), Some(lock_options))
             .await?;
-        let key = match str::from_utf8(resp.key()) {
-            Ok(key) => key,
-            Err(e) => return Err(ClusterNodeError::StringifyError(e)),
-        };
-        info!("Locking with lease: {}", key);
+        match self.client.unlock(lock_resp.key()).await {
+            Ok(resp) => debug!("New id key unlocked: {resp:#?}"),
+            Err(e) => error!("New id unlock failed: {e}"),
+        }
+        info!("Locking with lease: {:#?}", lock_resp.key());
 
         let svc_node = serde_json::to_string(&self.svc_node)?;
 
