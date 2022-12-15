@@ -32,3 +32,6 @@ spec:
       containers:
       - image: ratnadeepb/rdb-client:latest
         name: rdb-client
+      env:
+        name: PORT
+        value: "13525"

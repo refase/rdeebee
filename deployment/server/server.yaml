@@ -10,7 +10,7 @@ spec:
     # nodePort: 32048
   selector:
     app: rdb-server
-  type: NodePort
+  type: LoadBalancer
 
 ---
 
@@ -21,7 +21,7 @@ metadata:
     app: rdb-server
   name: rdb-server
 spec:
-  replicas: 2
+  replicas: 5
   selector:
     matchLabels:
       app: rdb-server
@@ -34,7 +34,19 @@ spec:
       - image: ratnadeepb/rdb-server:latest
         name: rdb-server
         env:
-        - name: POD_IP
+        - name: TRACE_LEVEL
+          value: "info"
+        - name: LEASE_TTL
+          value: "60"
+        - name: REFRESH_INTERVAL
+          value: "50"
+        - name: ETCD
+          value: "128.105.146.151:2379"
+        - name: NODE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: ADDRESS
           valueFrom:
             fieldRef:
               fieldPath: status.podIP

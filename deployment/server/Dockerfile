@@ -7,6 +7,7 @@ RUN cargo build --release
 
 FROM rust:latest
 COPY --from=builder /rdb-server/target/release/rdb-server /server/
+COPY config.yaml /server/
 
 WORKDIR /server
 EXPOSE 2048
