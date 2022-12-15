@@ -203,8 +203,15 @@ impl Node {
     async fn join_group(&mut self, key: String, group_id: usize) -> bool {
         let group_lock_key = group_add_lock!(group_id);
         // We expect to finish the op in 10 seconds.
-        let lock_options = LockOptions::new().with_lease(self.lease);
-        let _resp = match self.client.lock(group_lock_key, Some(lock_options)).await {
+        let lease = match self.client.lease_grant(10, None).await {
+            Ok(lease_response) => lease_response,
+            Err(e) => {
+                error!("Failed to get lease to join group: {e}");
+                return false;
+            }
+        };
+        let lock_options = LockOptions::new().with_lease(lease.id());
+        let lock_resp = match self.client.lock(group_lock_key, Some(lock_options)).await {
             Ok(resp) => resp,
             Err(e) => {
                 error!("Error locking group add key: {}", e);
@@ -225,6 +232,12 @@ impl Node {
                 error!("Error deleting lock key: {}", e);
                 return false;
             }
+        };
+
+        // Unlock the distributed mutex
+        match self.client.unlock(lock_resp.key()).await {
+            Ok(resp) => debug!("Join group key unlocked: {resp:#?}"),
+            Err(e) => error!("Join group unlock failed: {e}"),
         };
 
         true
