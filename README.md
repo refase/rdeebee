@@ -18,50 +18,32 @@ The etcd cluster is used for 3 purposes:
     - Register the node-to-group maps.
     - Get a globally unique sequence number for each write.
 
-### Testing concurrent access
+## Testing Natively
 
-Forward the redis port from the container (and change the address in `main.go` to `localhost`).
-
-```bash
-kubectl port-forward svc/redis 6379:6379
-```
-
-Write a `source.txt`
-
-```txt
-URL = localhost:6379
-```
-
-On two separate windows, start two clients:
+### Run the server:
 
 ```bash
-while true; do curl -K source.txt >> test1.log; done
+TRACE_LEVEL=info LEASE_TTL=60 REFRESH_INTERVAL=50 ETCD=localhost:2379 NODE=Server-1 ADDRESS=192.168.10.10 cargo run --bin rdb-server
 ```
 
-and
+### Run the client:
+
+#### Read
 
 ```bash
-while true; do curl -K source.txt >> test2.log; done
+TRACE_LEVEL=info ETCD=128.105.146.151:2379 COUNTER_KEY=counter LOCK_KEY=lock SERVER_IP=127.0.0.1 SERVER_PORT=2048 cargo run --bin rdb-client -- -k Deep read
 ```
 
-Check that there are no common lines:
+#### Write
 
 ```bash
-comm -1 -2 --nocheck-order --total test1.log test2.log
+TRACE_LEVEL=info ETCD=128.105.146.151:2379 COUNTER_KEY=counter LOCK_KEY=lock SERVER_IP=127.0.0.1 SERVER_PORT=2048 cargo run --bin rdb-client -- -k Deep -p "First write" write
 ```
 
-## Port Forwarding for Testing
-
-Redis:
+#### Delete
 
 ```bash
-kubectl port-forward svc/redis 6379:6379
-```
-
-Consul:
-
-```bash
- kubectl port-forward svc/consul-server 8500:8500 -n consul
+TRACE_LEVEL=info ETCD=128.105.146.151:2379 COUNTER_KEY=counter LOCK_KEY=lock SERVER_IP=127.0.0.1 SERVER_PORT=2048 cargo run --bin rdb-client -- -k Deep delete
 ```
 
 ## Working Branches
