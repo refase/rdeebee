@@ -203,7 +203,7 @@ impl Node {
     async fn join_group(&mut self, key: String, group_id: usize) -> bool {
         let group_lock_key = group_add_lock!(group_id);
         // We expect to finish the op in 10 seconds.
-        let lock_options = LockOptions::new().with_lease(10);
+        let lock_options = LockOptions::new().with_lease(self.lease);
         let _resp = match self.client.lock(group_lock_key, Some(lock_options)).await {
             Ok(resp) => resp,
             Err(e) => {
