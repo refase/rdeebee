@@ -167,6 +167,10 @@ impl Node {
     }
 
     async fn node_id(&mut self) -> Result<usize, ClusterNodeError> {
+        if let Some(id) = self.node_id {
+            return Ok(id);
+        }
+
         let (id_key, failover_key) = self.config.id_keys();
         // First check if any of the leaders are reporting failed group memebers.
         let getoptions = GetOptions::new().with_prefix();
@@ -181,7 +185,7 @@ impl Node {
         let kvs = resp.kvs();
         if !kvs.is_empty() {
             for kv in kvs {
-                let key = kv.key_str().expect("Failed to get key").to_owned();
+                let key = kv.key();
                 let group = kv
                     .value_str()
                     .expect("Failed to get node ID")
@@ -201,7 +205,7 @@ impl Node {
     }
 
     // Lock the group joining key and add the node to the group.
-    async fn join_group(&mut self, key: String, group_id: usize) -> bool {
+    async fn join_group(&mut self, key: &[u8], group_id: usize) -> bool {
         let group_lock_key = group_add_lock!(group_id);
         // We expect to finish the op in 10 seconds.
         let lease = match self.client.lease_grant(10, None).await {
@@ -293,7 +297,10 @@ impl Node {
 
         // Send value or error.
         match val {
-            Some(val) => Ok(val as usize),
+            Some(val) => {
+                self.node_id = Some(val as usize);
+                Ok(val as usize)
+            }
             None => Err(ClusterNodeError::ServerCreationError(
                 "Failed to read node ID".to_owned(),
             )),
