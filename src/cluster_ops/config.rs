@@ -29,7 +29,8 @@ struct PreConfig {
 
 impl PreConfig {
     fn new() -> Self {
-        let contents = fs::read_to_string("config.yaml").expect("Trouble reading config.yaml");
+        let contents =
+            fs::read_to_string("/etc/server/config.yaml").expect("Trouble reading config.yaml");
         let preconf: PreConfig =
             serde_yaml::from_str(&contents).expect("Failed to read configuration");
         preconf

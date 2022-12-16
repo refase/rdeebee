@@ -33,6 +33,9 @@ spec:
       containers:
       - image: ratnadeepb/rdb-server:latest
         name: rdb-server
+        volumeMounts:
+        - name: config
+          mountPath: /etc/server/
         env:
         - name: TRACE_LEVEL
           value: "info"
@@ -50,4 +53,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
-        
+      volumes:
+      - name: config
+        configMap:
+          name: server-config
